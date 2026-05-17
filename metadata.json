@@ -1,0 +1,10 @@
+{
+  "name": "Satak.io",
+  "description": "Gestão Inteligente de Validades.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
