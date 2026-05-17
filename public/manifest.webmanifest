@@ -1,0 +1,20 @@
+{
+  "name": "SATAK.IO - Gestão de Validades",
+  "short_name": "SATAK.IO",
+  "description": "Controle de validade, brigada e descartes para perecíveis.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f6f8",
+  "theme_color": "#2563eb",
+  "orientation": "portrait-primary",
+  "categories": ["productivity", "business", "utilities"],
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
