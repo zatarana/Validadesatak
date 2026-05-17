@@ -15,8 +15,7 @@ const initialFormData = {
   brand: '',
   category: DEFAULT_CATEGORY,
   inBrigade: false,
-  expirationDate: '',
-  quantity: ''
+  expirationDate: ''
 };
 
 function normalize(value: string) {
@@ -69,7 +68,6 @@ export function AddProduct() {
     e.preventDefault();
     const name = formData.name.trim();
     const expirationDate = formData.expirationDate;
-    const quantity = Number(formData.quantity || 1);
     const validationResult = validateBarcode(formData.barcode);
     const barcode = validationResult.normalized;
     const generatedBarcodeImage = generateBarcodeImageDataUrl(barcode);
@@ -81,11 +79,6 @@ export function AddProduct() {
 
     if (!validationResult.isValid) {
       toast.error(validationResult.message);
-      return;
-    }
-
-    if (!Number.isFinite(quantity) || quantity < 0) {
-      toast.error('Quantidade precisa ser zero ou maior.');
       return;
     }
 
@@ -102,12 +95,11 @@ export function AddProduct() {
       updateProduct(existingSameValidity.id, {
         barcode,
         barcodeImage: generatedBarcodeImage,
-        quantity: (existingSameValidity.quantity || 0) + quantity,
         brand: formData.brand.trim() || existingSameValidity.brand,
         category: formData.category.trim() || existingSameValidity.category,
         inBrigade: formData.inBrigade || existingSameValidity.inBrigade,
       });
-      toast.success('Quantidade somada ao lote existente.');
+      toast.success('Este lote já existia. As informações foram atualizadas.');
     } else {
       addProduct({
         name,
@@ -117,7 +109,6 @@ export function AddProduct() {
         category: formData.category.trim() || DEFAULT_CATEGORY,
         inBrigade: formData.inBrigade,
         expirationDate: toIsoFromInputDate(expirationDate),
-        quantity: formData.quantity ? quantity : undefined
       });
       toast.success(sameProduct.length > 0 ? 'Novo lote criado para outra validade.' : 'Produto adicionado com sucesso!');
     }
@@ -129,7 +120,7 @@ export function AddProduct() {
     <div className="space-y-6 pb-6 w-full">
       <div className="bg-white p-6 rounded-[32px] shadow-sm border-2 border-slate-100">
         <h1 className="text-4xl font-black text-slate-900 tracking-tighter leading-none">ADICIONAR</h1>
-        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-2">Busque por código ou preencha manualmente</p>
+        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-2">Cadastre o lote pela validade; quantidade só entra no descarte</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 sm:p-8 rounded-[40px] shadow-sm border-2 border-slate-100">
@@ -165,12 +156,12 @@ export function AddProduct() {
           <div className="space-y-3"><label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Categoria</label><select className="w-full bg-slate-50 border-2 border-slate-100 rounded-[20px] px-5 py-4 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-bold text-slate-800 appearance-none transition-all" value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })}>{STANDARD_CATEGORIES.map(category => <option key={category} value={category}>{category}</option>)}</select></div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-3"><label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Data de Validade *</label><input type="date" required className="w-full bg-slate-50 border-2 border-slate-100 rounded-[20px] px-5 py-4 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-bold text-slate-800 transition-all uppercase tracking-widest" value={formData.expirationDate} onChange={e => setFormData({ ...formData, expirationDate: e.target.value })} /></div>
-          <div className="space-y-3"><label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Quantidade</label><input type="number" min="0" placeholder="Ex: 50" className="w-full bg-slate-50 border-2 border-slate-100 rounded-[20px] px-5 py-4 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-bold text-slate-800 placeholder:text-slate-400 transition-all" value={formData.quantity} onChange={e => setFormData({ ...formData, quantity: e.target.value })} /></div>
+        <div className="space-y-3">
+          <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Data de Validade *</label>
+          <input type="date" required className="w-full bg-slate-50 border-2 border-slate-100 rounded-[20px] px-5 py-4 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-bold text-slate-800 transition-all uppercase tracking-widest" value={formData.expirationDate} onChange={e => setFormData({ ...formData, expirationDate: e.target.value })} />
         </div>
 
-        <div className="p-4 bg-indigo-50 border-2 border-indigo-100 rounded-[24px] text-indigo-700 text-xs font-bold leading-relaxed">Lote automático: se este mesmo produto já existir com esta validade, a quantidade será somada. Se a validade for diferente, o sistema criará outro lote automaticamente.</div>
+        <div className="p-4 bg-indigo-50 border-2 border-indigo-100 rounded-[24px] text-indigo-700 text-xs font-bold leading-relaxed">Lote automático: se este mesmo produto já existir com esta validade, o sistema atualiza o cadastro. Se a validade for diferente, cria outro lote automaticamente.</div>
 
         <div className="flex items-center justify-between p-5 bg-slate-50 border-2 border-slate-100 rounded-[24px]">
           <label className="text-xs font-black uppercase tracking-widest text-slate-700">Adicionar à Brigada</label>
