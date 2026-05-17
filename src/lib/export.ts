@@ -1,5 +1,6 @@
 import { Product, DiscardRecord, Settings } from '../types';
 import { formatPtDate, getDaysUntil, getExpirationLabel } from './dates';
+import { ProductListFilter } from '../types/filters';
 
 function downloadTextFile(filename: string, content: string, mimeType: string) {
   const blob = new Blob([content], { type: mimeType });
@@ -20,6 +21,27 @@ function csvCell(value: unknown) {
 
 function openWhatsApp(message: string) {
   window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
+}
+
+function filterProductsByStatus(products: Product[], settings: Settings, filter: ProductListFilter) {
+  return products
+    .filter(product => {
+      const days = getDaysUntil(product.expirationDate);
+      if (filter === 'expired') return days < 0;
+      if (filter === 'critical') return days >= 0 && days <= settings.alertCritical;
+      if (filter === 'attention') return days > settings.alertCritical && days <= settings.alertMedium;
+      if (filter === 'healthy') return days > settings.alertMedium;
+      return true;
+    })
+    .sort((a, b) => getDaysUntil(a.expirationDate) - getDaysUntil(b.expirationDate));
+}
+
+function statusTitle(filter: ProductListFilter) {
+  if (filter === 'expired') return 'Vencidos';
+  if (filter === 'critical') return 'Críticos';
+  if (filter === 'attention') return 'Atenção';
+  if (filter === 'healthy') return 'Saudáveis';
+  return 'Todos os lotes';
 }
 
 export function exportProductsCsv(products: Product[]) {
@@ -76,6 +98,29 @@ export function shareWhatsAppSummary(products: Product[], records: DiscardRecord
     `Vencidos: ${expired}`,
     `Críticos: ${critical}`,
     `Itens descartados: ${discarded}`,
+  ].join('\n');
+
+  openWhatsApp(message);
+}
+
+export function shareProductStatusList(products: Product[], settings: Settings, filter: ProductListFilter) {
+  const filtered = filterProductsByStatus(products, settings, filter);
+  const title = statusTitle(filter);
+  const lines = filtered.length
+    ? filtered.slice(0, 45).map((product, index) => {
+      const days = getDaysUntil(product.expirationDate);
+      return `${index + 1}. ${product.name} | ${product.brand || 'sem marca'} | qtd ${product.quantity ?? '-'} | vence ${formatPtDate(product.expirationDate)} (${getExpirationLabel(days)})`;
+    })
+    : [`Nenhum lote em ${title.toLowerCase()}.`];
+
+  const message = [
+    `*Lista de Validades — ${title}*`,
+    `Loja: ${settings.storeName || 'Não informado'}`,
+    `Equipe: ${settings.teamName || 'Não informado'}`,
+    `Gerado em: ${new Date().toLocaleString('pt-BR')}`,
+    `Total: ${filtered.length}`,
+    '',
+    ...lines,
   ].join('\n');
 
   openWhatsApp(message);
