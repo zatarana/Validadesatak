@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { StoreProvider } from './store/StoreContext';
-import { ScanBarcode, Bell, LayoutDashboard, PlusSquare, List as ListIcon, ShieldAlert, BarChart3, Settings, ClipboardCheck } from 'lucide-react';
+import { StoreProvider, useStore } from './store/StoreContext';
+import { ScanBarcode, Bell, LayoutDashboard, PlusSquare, List as ListIcon, ShieldAlert, BarChart3, Settings, ClipboardCheck, X, AlertTriangle, MessageCircle } from 'lucide-react';
 import { cn } from './lib/utils';
 import { Dashboard } from './pages/Dashboard';
 import { AddProduct } from './pages/AddProduct';
@@ -11,14 +11,23 @@ import { SettingsPage } from './pages/Settings';
 import { Conference } from './pages/Conference';
 import { Toaster } from 'sonner';
 import { ProductListFilter } from './types/filters';
+import { shareBrigadeChecklist } from './lib/export';
 
 function AppContent() {
+  const { products, settings } = useStore();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [listFilter, setListFilter] = useState<ProductListFilter>('all');
+  const [quickMenuOpen, setQuickMenuOpen] = useState(false);
 
   const openListWithFilter = (filter: ProductListFilter) => {
     setListFilter(filter);
     setActiveTab('list');
+    setQuickMenuOpen(false);
+  };
+
+  const openTab = (tab: string) => {
+    setActiveTab(tab);
+    setQuickMenuOpen(false);
   };
 
   const navItems = [
@@ -47,10 +56,10 @@ function AppContent() {
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Status</p>
             <p className="text-emerald-500 font-bold text-xs uppercase leading-none mt-1">Sincronizado</p>
           </div>
-          <div className="relative bg-slate-50 p-2 rounded-xl border border-slate-100">
+          <button onClick={() => openListWithFilter('critical')} className="relative bg-slate-50 p-2 rounded-xl border border-slate-100">
              <Bell size={20} className="text-slate-600" />
-             <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full shadow-sm">2</span>
-          </div>
+             <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full shadow-sm">!</span>
+          </button>
         </div>
       </header>
 
@@ -70,7 +79,7 @@ function AppContent() {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
             return (
-              <button key={item.id} onClick={() => setActiveTab(item.id)} className={cn('flex flex-col items-center justify-center min-w-[62px] flex-1 py-3 gap-1 rounded-2xl transition-all', isActive ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600')}>
+              <button key={item.id} onClick={() => openTab(item.id)} className={cn('flex flex-col items-center justify-center min-w-[62px] flex-1 py-3 gap-1 rounded-2xl transition-all', isActive ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600')}>
                 <Icon size={21} strokeWidth={isActive ? 2.5 : 2} />
                 <span className={cn('text-[8px] uppercase tracking-widest font-black transition-colors mt-0.5', isActive ? 'text-indigo-600' : 'text-slate-400')}>{item.label}</span>
               </button>
@@ -80,11 +89,34 @@ function AppContent() {
       </nav>
       
       {(activeTab === 'dashboard' || activeTab === 'list' || activeTab === 'brigade' || activeTab === 'reports' || activeTab === 'conference') && (
-        <button onClick={() => setActiveTab('add')} className="fixed bottom-28 right-6 bg-indigo-600 hover:bg-indigo-700 text-white w-14 h-14 flex items-center justify-center rounded-2xl shadow-xl shadow-indigo-100 border-b-4 border-indigo-800 active:border-b-0 active:translate-y-1 transition-all z-40">
-           <ScanBarcode size={24} strokeWidth={2.5} />
-        </button>
+        <>
+          {quickMenuOpen && <button aria-label="Fechar ações rápidas" onClick={() => setQuickMenuOpen(false)} className="fixed inset-0 bg-slate-900/20 backdrop-blur-[1px] z-40" />}
+          <div className="fixed bottom-28 right-6 z-50 flex flex-col items-end gap-3">
+            {quickMenuOpen && (
+              <div className="bg-white rounded-[28px] border-2 border-slate-100 shadow-2xl p-3 w-64 space-y-2">
+                <QuickAction icon={ScanBarcode} label="Escanear / adicionar" onClick={() => openTab('add')} />
+                <QuickAction icon={AlertTriangle} label="Ver críticos" onClick={() => openListWithFilter('critical')} />
+                <QuickAction icon={X} label="Ver vencidos" onClick={() => openListWithFilter('expired')} />
+                <QuickAction icon={ClipboardCheck} label="Abrir conferência" onClick={() => openTab('conference')} />
+                <QuickAction icon={MessageCircle} label="Compartilhar Brigada" onClick={() => { shareBrigadeChecklist(products, settings); setQuickMenuOpen(false); }} />
+              </div>
+            )}
+            <button onClick={() => setQuickMenuOpen(prev => !prev)} className={cn('bg-indigo-600 hover:bg-indigo-700 text-white w-14 h-14 flex items-center justify-center rounded-2xl shadow-xl shadow-indigo-100 border-b-4 border-indigo-800 active:border-b-0 active:translate-y-1 transition-all', quickMenuOpen && 'bg-slate-900 border-slate-950 hover:bg-slate-800')}>
+              {quickMenuOpen ? <X size={24} strokeWidth={2.5} /> : <ScanBarcode size={24} strokeWidth={2.5} />}
+            </button>
+          </div>
+        </>
       )}
     </div>
+  );
+}
+
+function QuickAction({ icon: Icon, label, onClick }: { icon: React.ElementType; label: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="w-full flex items-center gap-3 rounded-2xl px-4 py-3 bg-slate-50 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 transition-colors text-left">
+      <Icon size={18} />
+      <span className="font-black text-[10px] uppercase tracking-widest">{label}</span>
+    </button>
   );
 }
 
