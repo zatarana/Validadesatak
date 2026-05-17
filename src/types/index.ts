@@ -31,4 +31,5 @@ export type Settings = {
   alertMedium: number;
   alertLow: number;
   brigadeAutoSuggest: number;
+  notificationTime: string;
 };
