@@ -13,7 +13,19 @@ const CODE128_PATTERNS = [
 ];
 
 export function normalizeBarcodeValue(value: string) {
-  return value.replace(/\D/g, '');
+  return value
+    .trim()
+    .replace(/[\u0000-\u001F\u007F]/g, '')
+    .replace(/\s+/g, '')
+    .toUpperCase();
+}
+
+function escapeSvgText(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 function toCode128BValues(value: string) {
@@ -21,7 +33,13 @@ function toCode128BValues(value: string) {
   if (!cleanValue) return [];
 
   const startCodeB = 104;
-  const values = cleanValue.split('').map(char => char.charCodeAt(0) - 32);
+  const values = cleanValue
+    .split('')
+    .map(char => char.charCodeAt(0) - 32)
+    .filter(code => code >= 0 && code <= 94);
+
+  if (!values.length || values.length !== cleanValue.length) return [];
+
   const checksum = (startCodeB + values.reduce((sum, code, index) => sum + code * (index + 1), 0)) % 103;
 
   return [startCodeB, ...values, checksum, 106];
@@ -37,7 +55,9 @@ export function generateBarcodeSvg(barcode: string) {
   const barHeight = 64;
   const textArea = 26;
   const height = barHeight + textArea;
-  const patterns = codes.map(code => CODE128_PATTERNS[code]);
+  const patterns = codes.map(code => CODE128_PATTERNS[code]).filter(Boolean);
+  if (patterns.length !== codes.length) return '';
+
   const totalModules = patterns.join('').split('').reduce((sum, width) => sum + Number(width), 0);
   const width = quietZone * 2 + totalModules * moduleWidth;
 
@@ -54,10 +74,10 @@ export function generateBarcodeSvg(barcode: string) {
     });
   });
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="Código de barras ${cleanBarcode}">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="Código de barras ${escapeSvgText(cleanBarcode)}">
     <rect width="100%" height="100%" rx="12" fill="#ffffff" />
     ${rects.join('')}
-    <text x="50%" y="${height - 8}" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700" letter-spacing="2" fill="#111827">${cleanBarcode}</text>
+    <text x="50%" y="${height - 8}" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700" letter-spacing="2" fill="#111827">${escapeSvgText(cleanBarcode)}</text>
   </svg>`;
 }
 
