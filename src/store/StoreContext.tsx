@@ -79,7 +79,6 @@ function sanitizeProducts(raw: unknown): Product[] {
         expirationDate: validIso(item.expirationDate || item.validade || item.expiresAt || item.expiryDate),
         inBrigade: Boolean(item.inBrigade ?? item.brigade ?? item.naBrigada ?? false),
         addedAt: validIso(item.addedAt || item.createdAt || item.dataCadastro),
-        lastCheckedAt: item.lastCheckedAt ? validIso(item.lastCheckedAt) : undefined,
         batch: item.batch || item.lote ? String(item.batch || item.lote) : undefined,
       };
     });
