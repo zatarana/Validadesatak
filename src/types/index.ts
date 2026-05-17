@@ -1,6 +1,7 @@
 export type Product = {
   id: string;
   barcode: string;
+  barcodeImage?: string;
   name: string;
   brand: string;
   category: string;
