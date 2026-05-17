@@ -6,6 +6,7 @@ import { Product, DiscardRecord } from '../types';
 import { formatPtDate, toInputDate, toIsoFromInputDate } from '../lib/dates';
 import { DEFAULT_CATEGORY, STANDARD_CATEGORIES } from '../lib/categories';
 import { generateBarcodeImageDataUrl, normalizeBarcodeValue } from '../lib/barcodeImage';
+import { validateBarcode } from '../lib/barcodeValidation';
 
 interface EditProductModalProps {
   product: Product;
@@ -31,10 +32,12 @@ export function EditProductModal({ product, onClose }: EditProductModalProps) {
   const [discardReason, setDiscardReason] = useState<DiscardRecord['reason']>('Validade');
 
   const barcodeImage = generateBarcodeImageDataUrl(formData.barcode);
+  const validation = formData.barcode ? validateBarcode(formData.barcode) : null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const barcode = normalizeBarcodeValue(formData.barcode);
+    const validationResult = validateBarcode(formData.barcode);
+    const barcode = validationResult.normalized;
     const generatedBarcodeImage = generateBarcodeImageDataUrl(barcode);
 
     if (!formData.name.trim() || !formData.expirationDate) {
@@ -42,8 +45,8 @@ export function EditProductModal({ product, onClose }: EditProductModalProps) {
       return;
     }
 
-    if (!barcode || !generatedBarcodeImage) {
-      toast.error('Informe um código de barras válido para gerar a imagem.');
+    if (!validationResult.isValid || !generatedBarcodeImage) {
+      toast.error(validationResult.message);
       return;
     }
 
@@ -92,31 +95,24 @@ export function EditProductModal({ product, onClose }: EditProductModalProps) {
         <div className="sticky top-0 bg-white/95 backdrop-blur-md z-10 flex justify-between items-center p-6 border-b-2 border-slate-100">
           <div>
             <h2 className="text-2xl font-black text-slate-900 tracking-tighter leading-none">EDITAR LOTE</h2>
-            <div className="flex items-center gap-1.5 text-slate-400 mt-2">
-              <CalendarPlus size={12} />
-              <span className="text-[10px] font-bold uppercase tracking-widest">Adicionado em {formatPtDate(product.addedAt, 'dd/MM/yyyy')}</span>
-            </div>
+            <div className="flex items-center gap-1.5 text-slate-400 mt-2"><CalendarPlus size={12} /><span className="text-[10px] font-bold uppercase tracking-widest">Adicionado em {formatPtDate(product.addedAt, 'dd/MM/yyyy')}</span></div>
           </div>
           <button onClick={onClose} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:text-slate-800 hover:bg-slate-200 transition-colors"><X size={20} /></button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5 p-6">
           <Field label="Nome *"><input type="text" required className={inputClass} value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} /></Field>
-
           <div className="grid grid-cols-2 gap-4">
             <Field label="Marca"><input type="text" className={inputClass} value={formData.brand} onChange={e => setFormData({ ...formData, brand: e.target.value })} /></Field>
             <Field label="Categoria"><select className={inputClass} value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })}>{STANDARD_CATEGORIES.map(category => <option key={category} value={category}>{category}</option>)}</select></Field>
           </div>
 
-          <Field label="Código de barras *"><input type="text" required className={inputClass} value={formData.barcode} onChange={e => setFormData({ ...formData, barcode: normalizeBarcodeValue(e.target.value) })} /></Field>
+          <Field label="Código de barras *">
+            <input type="text" required className={inputClass} value={formData.barcode} onChange={e => setFormData({ ...formData, barcode: normalizeBarcodeValue(e.target.value) })} />
+            {validation && <p className={`text-xs font-bold mt-2 ${validation.isValid ? 'text-emerald-600' : 'text-rose-600'}`}>{validation.message}</p>}
+          </Field>
 
-          {barcodeImage ? (
-            <Field label="Imagem gerada do código de barras">
-              <img src={barcodeImage} alt="Código de barras gerado" className="w-full max-h-40 object-contain bg-white rounded-2xl border-2 border-slate-100 p-3" />
-            </Field>
-          ) : (
-            <div className="bg-rose-50 border-2 border-rose-100 rounded-[24px] p-4 text-rose-700 text-xs font-bold leading-relaxed">Informe o código de barras para o app gerar a imagem automaticamente.</div>
-          )}
+          {barcodeImage ? <Field label="Imagem gerada do código de barras"><img src={barcodeImage} alt="Código de barras gerado" className="w-full max-h-40 object-contain bg-white rounded-2xl border-2 border-slate-100 p-3" /></Field> : <div className="bg-rose-50 border-2 border-rose-100 rounded-[24px] p-4 text-rose-700 text-xs font-bold leading-relaxed">Informe o código de barras para o app gerar a imagem automaticamente.</div>}
 
           <div className="grid grid-cols-2 gap-4">
             <Field label="Data de validade *"><input type="date" required className={`${inputClass} uppercase tracking-widest`} value={formData.expirationDate} onChange={e => setFormData({ ...formData, expirationDate: e.target.value })} /></Field>
@@ -125,13 +121,9 @@ export function EditProductModal({ product, onClose }: EditProductModalProps) {
           </div>
 
           <div className="bg-indigo-50 border-2 border-indigo-100 rounded-[24px] p-4 text-indigo-700 text-xs font-bold leading-relaxed">Lote automático: este lote é identificado pela data de validade deste produto.</div>
-
           <div className="bg-rose-50 border-2 border-rose-100 rounded-[28px] p-4 space-y-3">
             <div className="flex items-center gap-2 text-rose-700 font-black uppercase tracking-widest text-[10px]"><PackageCheck size={16} /> Dar baixa / descarte</div>
-            <div className="grid grid-cols-2 gap-3">
-              <input type="number" min="1" className={`${inputClass} bg-white`} value={discardQuantity} onChange={e => setDiscardQuantity(e.target.value)} />
-              <select className={`${inputClass} bg-white`} value={discardReason} onChange={e => setDiscardReason(e.target.value as DiscardRecord['reason'])}>{reasons.map(reason => <option key={reason} value={reason}>{reason}</option>)}</select>
-            </div>
+            <div className="grid grid-cols-2 gap-3"><input type="number" min="1" className={`${inputClass} bg-white`} value={discardQuantity} onChange={e => setDiscardQuantity(e.target.value)} /><select className={`${inputClass} bg-white`} value={discardReason} onChange={e => setDiscardReason(e.target.value as DiscardRecord['reason'])}>{reasons.map(reason => <option key={reason} value={reason}>{reason}</option>)}</select></div>
             <button type="button" onClick={handleDiscard} className="w-full py-3 rounded-2xl bg-rose-600 text-white font-black uppercase tracking-widest text-[10px] hover:bg-rose-700 transition-colors">Registrar descarte</button>
           </div>
 
