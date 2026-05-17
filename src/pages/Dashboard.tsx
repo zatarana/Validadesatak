@@ -3,6 +3,8 @@ import { useStore } from '../store/StoreContext';
 import { Search, AlertTriangle } from 'lucide-react';
 import { getDaysUntil, getExpirationLabel } from '../lib/dates';
 import { ProductListFilter } from '../types/filters';
+import { Product } from '../types';
+import { EditProductModal } from '../components/EditProductModal';
 
 interface DashboardProps {
   onOpenListFilter: (filter: ProductListFilter) => void;
@@ -11,6 +13,7 @@ interface DashboardProps {
 export function Dashboard({ onOpenListFilter }: DashboardProps) {
   const { products, settings } = useStore();
   const [search, setSearch] = useState('');
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
   const expiringSoon = products
     .filter(product => !product.inBrigade)
@@ -68,7 +71,7 @@ export function Dashboard({ onOpenListFilter }: DashboardProps) {
           {searchResults.map(product => {
             const days = getDaysUntil(product.expirationDate);
             return (
-              <button key={product.id} onClick={() => onOpenListFilter('all')} className="w-full flex items-center justify-between p-3 bg-slate-50 rounded-[20px] text-left hover:bg-slate-100 transition-colors">
+              <button key={product.id} onClick={() => setEditingProduct(product)} className="w-full flex items-center justify-between p-3 bg-slate-50 rounded-[20px] text-left hover:bg-slate-100 transition-colors">
                 <div>
                   <p className="font-black text-slate-800 leading-none">{product.name}</p>
                   <p className="text-[10px] text-slate-400 uppercase tracking-widest font-black mt-1.5">{product.brand || 'Sem marca'}</p>
@@ -93,7 +96,7 @@ export function Dashboard({ onOpenListFilter }: DashboardProps) {
           {expiringSoon.map((product) => {
             const days = getDaysUntil(product.expirationDate);
             return (
-              <button key={product.id} onClick={() => onOpenListFilter('all')} className="w-full flex items-center justify-between p-4 bg-slate-50 rounded-[28px] border border-slate-100 hover:bg-slate-100 transition-colors text-left">
+              <button key={product.id} onClick={() => setEditingProduct(product)} className="w-full flex items-center justify-between p-4 bg-slate-50 rounded-[28px] border border-slate-100 hover:bg-slate-100 transition-colors text-left">
                 <div className="flex items-center gap-4 min-w-0">
                   <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center border border-slate-200 text-slate-400 shadow-sm font-black shrink-0">
                     <AlertTriangle size={20} className={days <= settings.alertCritical ? 'text-red-500' : 'text-amber-500'} />
@@ -127,6 +130,8 @@ export function Dashboard({ onOpenListFilter }: DashboardProps) {
           <span className="text-sm font-bold bg-white/20 px-3 py-1.5 rounded-xl italic tracking-tighter">+{addedToday} hoje</span>
         </div>
       </button>
+
+      {editingProduct && <EditProductModal product={editingProduct} onClose={() => setEditingProduct(null)} />}
     </div>
   );
 }
