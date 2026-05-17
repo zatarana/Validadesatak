@@ -120,7 +120,7 @@ export function AddProduct() {
     <div className="space-y-6 pb-6 w-full">
       <div className="bg-white p-6 rounded-[32px] shadow-sm border-2 border-slate-100">
         <h1 className="text-4xl font-black text-slate-900 tracking-tighter leading-none">ADICIONAR</h1>
-        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-2">Cadastre o lote pela validade; quantidade só entra no descarte</p>
+        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-2">Cadastre o produto pela data de validade</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 sm:p-8 rounded-[40px] shadow-sm border-2 border-slate-100">
