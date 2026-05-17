@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, CalendarPlus, Save, Trash2, ShieldAlert, PackageCheck } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { X, CalendarPlus, Save, Trash2, ShieldAlert, PackageCheck, History } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStore } from '../store/StoreContext';
 import { Product, DiscardRecord } from '../types';
@@ -17,7 +17,7 @@ const inputClass = 'w-full bg-slate-50 border-2 border-slate-100 rounded-[20px] 
 const reasons: DiscardRecord['reason'][] = ['Validade', 'Avaria', 'Não informado'];
 
 export function EditProductModal({ product, onClose }: EditProductModalProps) {
-  const { updateProduct, deleteProduct, discardProduct } = useStore();
+  const { updateProduct, deleteProduct, discardProduct, discardRecords } = useStore();
   const categoryValue = STANDARD_CATEGORIES.includes(product.category) ? product.category : DEFAULT_CATEGORY;
   const [formData, setFormData] = useState({
     barcode: normalizeBarcodeValue(product.barcode || ''),
@@ -33,6 +33,15 @@ export function EditProductModal({ product, onClose }: EditProductModalProps) {
 
   const barcodeImage = generateBarcodeImageDataUrl(formData.barcode);
   const validation = formData.barcode ? validateBarcode(formData.barcode) : null;
+  const productHistory = useMemo(() => {
+    const barcode = normalizeBarcodeValue(product.barcode || '');
+    return discardRecords
+      .filter(record => record.productId === product.id || (barcode && normalizeBarcodeValue(record.productBarcode || '') === barcode) || record.productName.toLowerCase() === product.name.toLowerCase())
+      .sort((a, b) => new Date(b.discardedAt).getTime() - new Date(a.discardedAt).getTime())
+      .slice(0, 6);
+  }, [discardRecords, product.id, product.barcode, product.name]);
+
+  const totalDiscarded = productHistory.reduce((sum, record) => sum + record.quantity, 0);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -124,7 +133,24 @@ export function EditProductModal({ product, onClose }: EditProductModalProps) {
           <div className="bg-rose-50 border-2 border-rose-100 rounded-[28px] p-4 space-y-3">
             <div className="flex items-center gap-2 text-rose-700 font-black uppercase tracking-widest text-[10px]"><PackageCheck size={16} /> Dar baixa / descarte</div>
             <div className="grid grid-cols-2 gap-3"><input type="number" min="1" className={`${inputClass} bg-white`} value={discardQuantity} onChange={e => setDiscardQuantity(e.target.value)} /><select className={`${inputClass} bg-white`} value={discardReason} onChange={e => setDiscardReason(e.target.value as DiscardRecord['reason'])}>{reasons.map(reason => <option key={reason} value={reason}>{reason}</option>)}</select></div>
+            <p className="text-xs font-bold text-rose-700/80">Se a quantidade descartada for menor que a quantidade do lote, o sistema mantém o saldo restante.</p>
             <button type="button" onClick={handleDiscard} className="w-full py-3 rounded-2xl bg-rose-600 text-white font-black uppercase tracking-widest text-[10px] hover:bg-rose-700 transition-colors">Registrar descarte</button>
+          </div>
+
+          <div className="bg-slate-50 border-2 border-slate-100 rounded-[28px] p-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-slate-700 font-black uppercase tracking-widest text-[10px]"><History size={16} /> Histórico</div>
+              <span className="bg-white border border-slate-200 text-slate-600 rounded-xl px-2 py-1 text-[10px] font-black">{totalDiscarded} un desc.</span>
+            </div>
+            {productHistory.length > 0 ? productHistory.map(record => (
+              <div key={record.id} className="flex justify-between gap-3 border-t border-slate-200/70 pt-3 first:border-t-0 first:pt-0">
+                <div>
+                  <p className="font-black text-slate-800 text-sm">{record.reason}</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{new Date(record.discardedAt).toLocaleString('pt-BR')}</p>
+                </div>
+                <span className="font-black text-rose-600 text-sm shrink-0">-{record.quantity}</span>
+              </div>
+            )) : <p className="text-xs font-bold text-slate-400">Nenhum descarte registrado para este produto.</p>}
           </div>
 
           <div className="grid grid-cols-[1fr_auto] gap-3 pt-1">
