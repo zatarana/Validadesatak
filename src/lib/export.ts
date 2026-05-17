@@ -18,6 +18,10 @@ function csvCell(value: unknown) {
   return `"${text.replace(/"/g, '""')}"`;
 }
 
+function openWhatsApp(message: string) {
+  window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
+}
+
 export function exportProductsCsv(products: Product[]) {
   const header = ['Nome', 'Marca', 'Categoria', 'Código', 'Lote', 'Quantidade', 'Validade', 'Dias', 'Brigada', 'Adicionado'];
   const rows = products.map(product => [
@@ -74,7 +78,31 @@ export function shareWhatsAppSummary(products: Product[], records: DiscardRecord
     `Itens descartados: ${discarded}`,
   ].join('\n');
 
-  window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
+  openWhatsApp(message);
+}
+
+export function shareBrigadeChecklist(products: Product[], settings: Settings) {
+  const brigadeProducts = products
+    .filter(product => product.inBrigade || getDaysUntil(product.expirationDate) <= settings.brigadeAutoSuggest)
+    .sort((a, b) => getDaysUntil(a.expirationDate) - getDaysUntil(b.expirationDate));
+
+  const lines = brigadeProducts.length
+    ? brigadeProducts.slice(0, 40).map((product, index) => {
+      const days = getDaysUntil(product.expirationDate);
+      return `${index + 1}. ${product.name} | ${product.brand || 'sem marca'} | qtd ${product.quantity ?? '-'} | vence ${formatPtDate(product.expirationDate)} (${getExpirationLabel(days)})`;
+    })
+    : ['Nenhum lote na Brigada ou dentro do prazo de sugestão.'];
+
+  const message = [
+    '*Checklist da Brigada de Validade*',
+    `Loja: ${settings.storeName || 'Não informado'}`,
+    `Equipe: ${settings.teamName || 'Não informado'}`,
+    `Gerado em: ${new Date().toLocaleString('pt-BR')}`,
+    '',
+    ...lines,
+  ].join('\n');
+
+  openWhatsApp(message);
 }
 
 export function printProductsReport(products: Product[], records: DiscardRecord[], settings: Settings) {
