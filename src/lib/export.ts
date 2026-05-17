@@ -1,6 +1,7 @@
 import { Product, DiscardRecord, Settings } from '../types';
 import { formatPtDate, getDaysUntil, getExpirationLabel } from './dates';
 import { ProductListFilter } from '../types/filters';
+import { generateBarcodeImageDataUrl } from './barcodeImage';
 
 function downloadTextFile(filename: string, content: string, mimeType: string) {
   const blob = new Blob([content], { type: mimeType });
@@ -17,6 +18,15 @@ function downloadTextFile(filename: string, content: string, mimeType: string) {
 function csvCell(value: unknown) {
   const text = String(value ?? '');
   return `"${text.replace(/"/g, '""')}"`;
+}
+
+function escapeHtml(value: unknown) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 function openWhatsApp(message: string) {
@@ -150,18 +160,70 @@ export function shareBrigadeChecklist(products: Product[], settings: Settings) {
   openWhatsApp(message);
 }
 
+export function printBarcodeLabels(products: Product[], settings: Settings) {
+  const sortedProducts = products.slice().sort((a, b) => getDaysUntil(a.expirationDate) - getDaysUntil(b.expirationDate));
+  const labels = sortedProducts.map(product => {
+    const days = getDaysUntil(product.expirationDate);
+    const barcodeImage = product.barcodeImage || generateBarcodeImageDataUrl(product.barcode);
+    return `
+      <section class="label">
+        <div class="topline">${escapeHtml(settings.storeName || 'SATAK.IO')}</div>
+        <div class="product">${escapeHtml(product.name)}</div>
+        <div class="meta">${escapeHtml(product.brand || 'Sem marca')} • ${escapeHtml(product.category || 'Sem categoria')}</div>
+        ${barcodeImage ? `<img class="barcode" src="${barcodeImage}" alt="Código ${escapeHtml(product.barcode)}" />` : `<div class="barcode fallback">${escapeHtml(product.barcode || '-')}</div>`}
+        <div class="bottom">
+          <span>Val.: <strong>${formatPtDate(product.expirationDate)}</strong></span>
+          <span>Qtd.: <strong>${escapeHtml(product.quantity ?? '-')}</strong></span>
+        </div>
+        <div class="status">${escapeHtml(getExpirationLabel(days))}</div>
+      </section>
+    `;
+  }).join('');
+
+  const html = `
+    <html>
+      <head>
+        <title>Etiquetas de Validade</title>
+        <style>
+          * { box-sizing: border-box; }
+          body { margin: 0; padding: 12mm; font-family: Arial, sans-serif; color: #111827; }
+          .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8mm; }
+          .label { border: 1.5px solid #111827; border-radius: 10px; padding: 9px; min-height: 62mm; page-break-inside: avoid; display: flex; flex-direction: column; gap: 4px; }
+          .topline { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .12em; color: #4f46e5; }
+          .product { font-size: 15px; line-height: 1.1; font-weight: 900; }
+          .meta { font-size: 9px; color: #4b5563; font-weight: 700; text-transform: uppercase; }
+          .barcode { width: 100%; height: 31mm; object-fit: contain; margin: 1px 0; }
+          .fallback { border: 1px dashed #9ca3af; display: flex; align-items: center; justify-content: center; font-weight: 800; }
+          .bottom { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; }
+          .status { background: #f3f4f6; border-radius: 8px; padding: 5px; text-align: center; font-size: 11px; font-weight: 900; text-transform: uppercase; }
+          @media print { body { padding: 8mm; } .grid { gap: 5mm; } }
+        </style>
+      </head>
+      <body>
+        <div class="grid">${labels || '<p>Nenhum produto cadastrado.</p>'}</div>
+        <script>window.print();</script>
+      </body>
+    </html>
+  `;
+
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) return;
+  printWindow.document.write(html);
+  printWindow.document.close();
+}
+
 export function printProductsReport(products: Product[], records: DiscardRecord[], settings: Settings) {
   const rows = products
     .slice()
     .sort((a, b) => getDaysUntil(a.expirationDate) - getDaysUntil(b.expirationDate))
     .map(product => `
       <tr>
-        <td>${product.name}</td>
-        <td>${product.brand || '-'}</td>
-        <td>${product.category || '-'}</td>
-        <td>${product.quantity ?? '-'}</td>
+        <td>${escapeHtml(product.name)}</td>
+        <td>${escapeHtml(product.brand || '-')}</td>
+        <td>${escapeHtml(product.category || '-')}</td>
+        <td>${escapeHtml(product.quantity ?? '-')}</td>
         <td>${formatPtDate(product.expirationDate, 'dd/MM/yyyy')}</td>
-        <td>${getExpirationLabel(getDaysUntil(product.expirationDate))}</td>
+        <td>${escapeHtml(getExpirationLabel(getDaysUntil(product.expirationDate)))}</td>
         <td>${product.inBrigade ? 'Sim' : 'Não'}</td>
       </tr>
     `).join('');
@@ -185,7 +247,7 @@ export function printProductsReport(products: Product[], records: DiscardRecord[
       </head>
       <body>
         <h1>Relatório de Validades</h1>
-        <div class="meta">${settings.storeName} • ${settings.teamName} • ${new Date().toLocaleString('pt-BR')}</div>
+        <div class="meta">${escapeHtml(settings.storeName)} • ${escapeHtml(settings.teamName)} • ${new Date().toLocaleString('pt-BR')}</div>
         <div class="cards">
           <div class="card"><div class="value">${products.length}</div><div>Produtos</div></div>
           <div class="card"><div class="value">${products.filter(p => p.inBrigade).length}</div><div>Na brigada</div></div>
