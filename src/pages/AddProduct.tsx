@@ -7,6 +7,7 @@ import { toInputDate, toIsoFromInputDate } from '../lib/dates';
 import { DEFAULT_CATEGORY, STANDARD_CATEGORIES } from '../lib/categories';
 import { lookupBarcode } from '../lib/barcodeLookup';
 import { generateBarcodeImageDataUrl, normalizeBarcodeValue } from '../lib/barcodeImage';
+import { validateBarcode } from '../lib/barcodeValidation';
 
 const initialFormData = {
   barcode: '',
@@ -29,24 +30,26 @@ export function AddProduct() {
   const [isLookingUp, setIsLookingUp] = useState(false);
 
   const barcodeImage = generateBarcodeImageDataUrl(formData.barcode);
+  const validation = formData.barcode ? validateBarcode(formData.barcode) : null;
 
   const setBarcode = (barcode: string) => {
     setFormData(prev => ({ ...prev, barcode: normalizeBarcodeValue(barcode) }));
   };
 
   const handleBarcodeLookup = async (barcodeValue = formData.barcode) => {
-    const barcode = normalizeBarcodeValue(barcodeValue);
-    if (!barcode) {
-      toast.error('Informe ou escaneie um código de barras.');
+    const validationResult = validateBarcode(barcodeValue);
+    if (!validationResult.isValid) {
+      toast.error(validationResult.message);
+      setBarcode(validationResult.normalized);
       return;
     }
 
     setIsLookingUp(true);
-    const result = await lookupBarcode(barcode, products);
+    const result = await lookupBarcode(validationResult.normalized, products);
     setIsLookingUp(false);
 
     if (result.source === 'not_found') {
-      setFormData(prev => ({ ...prev, barcode: result.barcode || barcode }));
+      setFormData(prev => ({ ...prev, barcode: result.barcode || validationResult.normalized }));
       toast.info('Produto não encontrado. Preencha nome e categoria manualmente.');
       return;
     }
@@ -67,7 +70,8 @@ export function AddProduct() {
     const name = formData.name.trim();
     const expirationDate = formData.expirationDate;
     const quantity = Number(formData.quantity || 1);
-    const barcode = normalizeBarcodeValue(formData.barcode);
+    const validationResult = validateBarcode(formData.barcode);
+    const barcode = validationResult.normalized;
     const generatedBarcodeImage = generateBarcodeImageDataUrl(barcode);
 
     if (!name || !expirationDate) {
@@ -75,8 +79,8 @@ export function AddProduct() {
       return;
     }
 
-    if (!barcode) {
-      toast.error('Informe ou escaneie o código de barras.');
+    if (!validationResult.isValid) {
+      toast.error(validationResult.message);
       return;
     }
 
@@ -140,6 +144,7 @@ export function AddProduct() {
             <input type="text" placeholder="Digite o código" className="flex-1 bg-slate-50 border-2 border-slate-100 rounded-[20px] px-5 py-4 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-bold text-slate-800 placeholder:text-slate-400 transition-all" value={formData.barcode} onChange={e => setBarcode(e.target.value)} />
             <button type="button" onClick={() => void handleBarcodeLookup()} disabled={isLookingUp} className="bg-slate-100 border-2 border-slate-200 aspect-square w-16 rounded-[20px] flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors disabled:opacity-50"><Search size={24} strokeWidth={2.5} /></button>
           </div>
+          {validation && <p className={`text-xs font-bold ${validation.isValid ? 'text-emerald-600' : 'text-rose-600'}`}>{validation.message}</p>}
           <p className="text-xs text-slate-400 font-bold">A busca consulta primeiro os produtos salvos localmente. Se não encontrar, tenta buscar na web.</p>
         </div>
 
@@ -156,29 +161,13 @@ export function AddProduct() {
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-3">
-            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Marca</label>
-            <input type="text" placeholder="Ex: Itambé" className="w-full bg-slate-50 border-2 border-slate-100 rounded-[20px] px-5 py-4 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-bold text-slate-800 placeholder:text-slate-400 transition-all" value={formData.brand} onChange={e => setFormData({ ...formData, brand: e.target.value })} />
-          </div>
-
-          <div className="space-y-3">
-            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Categoria</label>
-            <select className="w-full bg-slate-50 border-2 border-slate-100 rounded-[20px] px-5 py-4 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-bold text-slate-800 appearance-none transition-all" value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })}>
-              {STANDARD_CATEGORIES.map(category => <option key={category} value={category}>{category}</option>)}
-            </select>
-          </div>
+          <div className="space-y-3"><label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Marca</label><input type="text" placeholder="Ex: Itambé" className="w-full bg-slate-50 border-2 border-slate-100 rounded-[20px] px-5 py-4 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-bold text-slate-800 placeholder:text-slate-400 transition-all" value={formData.brand} onChange={e => setFormData({ ...formData, brand: e.target.value })} /></div>
+          <div className="space-y-3"><label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Categoria</label><select className="w-full bg-slate-50 border-2 border-slate-100 rounded-[20px] px-5 py-4 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-bold text-slate-800 appearance-none transition-all" value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })}>{STANDARD_CATEGORIES.map(category => <option key={category} value={category}>{category}</option>)}</select></div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-3">
-            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Data de Validade *</label>
-            <input type="date" required className="w-full bg-slate-50 border-2 border-slate-100 rounded-[20px] px-5 py-4 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-bold text-slate-800 transition-all uppercase tracking-widest" value={formData.expirationDate} onChange={e => setFormData({ ...formData, expirationDate: e.target.value })} />
-          </div>
-
-          <div className="space-y-3">
-            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Quantidade</label>
-            <input type="number" min="0" placeholder="Ex: 50" className="w-full bg-slate-50 border-2 border-slate-100 rounded-[20px] px-5 py-4 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-bold text-slate-800 placeholder:text-slate-400 transition-all" value={formData.quantity} onChange={e => setFormData({ ...formData, quantity: e.target.value })} />
-          </div>
+          <div className="space-y-3"><label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Data de Validade *</label><input type="date" required className="w-full bg-slate-50 border-2 border-slate-100 rounded-[20px] px-5 py-4 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-bold text-slate-800 transition-all uppercase tracking-widest" value={formData.expirationDate} onChange={e => setFormData({ ...formData, expirationDate: e.target.value })} /></div>
+          <div className="space-y-3"><label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Quantidade</label><input type="number" min="0" placeholder="Ex: 50" className="w-full bg-slate-50 border-2 border-slate-100 rounded-[20px] px-5 py-4 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-bold text-slate-800 placeholder:text-slate-400 transition-all" value={formData.quantity} onChange={e => setFormData({ ...formData, quantity: e.target.value })} /></div>
         </div>
 
         <div className="p-4 bg-indigo-50 border-2 border-indigo-100 rounded-[24px] text-indigo-700 text-xs font-bold leading-relaxed">Lote automático: se este mesmo produto já existir com esta validade, a quantidade será somada. Se a validade for diferente, o sistema criará outro lote automaticamente.</div>
