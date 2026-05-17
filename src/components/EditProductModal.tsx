@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { X, CalendarPlus, Save, Trash2, ShieldAlert, PackageCheck, ImagePlus } from 'lucide-react';
+import { X, CalendarPlus, Save, Trash2, ShieldAlert, PackageCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStore } from '../store/StoreContext';
 import { Product, DiscardRecord } from '../types';
 import { formatPtDate, toInputDate, toIsoFromInputDate } from '../lib/dates';
 import { DEFAULT_CATEGORY, STANDARD_CATEGORIES } from '../lib/categories';
-import { fileToDataUrl } from '../lib/barcodeLookup';
+import { generateBarcodeImageDataUrl, normalizeBarcodeValue } from '../lib/barcodeImage';
 
 interface EditProductModalProps {
   product: Product;
@@ -19,8 +19,7 @@ export function EditProductModal({ product, onClose }: EditProductModalProps) {
   const { updateProduct, deleteProduct, discardProduct } = useStore();
   const categoryValue = STANDARD_CATEGORIES.includes(product.category) ? product.category : DEFAULT_CATEGORY;
   const [formData, setFormData] = useState({
-    barcode: product.barcode || '',
-    barcodeImage: product.barcodeImage || '',
+    barcode: normalizeBarcodeValue(product.barcode || ''),
     name: product.name || '',
     brand: product.brand || '',
     category: categoryValue,
@@ -31,30 +30,28 @@ export function EditProductModal({ product, onClose }: EditProductModalProps) {
   const [discardQuantity, setDiscardQuantity] = useState(product.quantity?.toString() || '1');
   const [discardReason, setDiscardReason] = useState<DiscardRecord['reason']>('Validade');
 
-  const handleBarcodeImage = async (file?: File) => {
-    if (!file) return;
-    const dataUrl = await fileToDataUrl(file);
-    setFormData(prev => ({ ...prev, barcodeImage: dataUrl }));
-    toast.success('Imagem do código anexada.');
-  };
+  const barcodeImage = generateBarcodeImageDataUrl(formData.barcode);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const barcode = normalizeBarcodeValue(formData.barcode);
+    const generatedBarcodeImage = generateBarcodeImageDataUrl(barcode);
+
     if (!formData.name.trim() || !formData.expirationDate) {
       toast.error('Preencha nome e validade.');
       return;
     }
 
-    if (!formData.barcodeImage) {
-      toast.error('Anexe a imagem do código de barras para salvar.');
+    if (!barcode || !generatedBarcodeImage) {
+      toast.error('Informe um código de barras válido para gerar a imagem.');
       return;
     }
 
     const quantity = Number(formData.quantity);
 
     updateProduct(product.id, {
-      barcode: formData.barcode.trim(),
-      barcodeImage: formData.barcodeImage,
+      barcode,
+      barcodeImage: generatedBarcodeImage,
       name: formData.name.trim(),
       brand: formData.brand.trim(),
       category: formData.category.trim() || DEFAULT_CATEGORY,
@@ -111,20 +108,15 @@ export function EditProductModal({ product, onClose }: EditProductModalProps) {
             <Field label="Categoria"><select className={inputClass} value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })}>{STANDARD_CATEGORIES.map(category => <option key={category} value={category}>{category}</option>)}</select></Field>
           </div>
 
-          <Field label="Código de barras"><input type="text" className={inputClass} value={formData.barcode} onChange={e => setFormData({ ...formData, barcode: e.target.value })} /></Field>
+          <Field label="Código de barras *"><input type="text" required className={inputClass} value={formData.barcode} onChange={e => setFormData({ ...formData, barcode: normalizeBarcodeValue(e.target.value) })} /></Field>
 
-          <Field label="Imagem do código de barras *">
-            <label className="flex items-center justify-center gap-3 bg-slate-50 border-2 border-dashed border-slate-200 rounded-[24px] p-4 cursor-pointer hover:bg-slate-100 transition-colors">
-              <ImagePlus size={22} className="text-indigo-600" />
-              <span className="font-black text-[10px] uppercase tracking-widest text-slate-600">Anexar / trocar imagem</span>
-              <input type="file" accept="image/*" capture="environment" className="hidden" onChange={event => void handleBarcodeImage(event.target.files?.[0])} />
-            </label>
-            {formData.barcodeImage ? (
-              <img src={formData.barcodeImage} alt="Código de barras anexado" className="w-full max-h-40 object-contain bg-slate-50 rounded-2xl border-2 border-slate-100 p-2 mt-3" />
-            ) : (
-              <p className="text-xs text-rose-600 font-bold mt-2">Obrigatório: anexe a imagem do código de barras antes de salvar.</p>
-            )}
-          </Field>
+          {barcodeImage ? (
+            <Field label="Imagem gerada do código de barras">
+              <img src={barcodeImage} alt="Código de barras gerado" className="w-full max-h-40 object-contain bg-white rounded-2xl border-2 border-slate-100 p-3" />
+            </Field>
+          ) : (
+            <div className="bg-rose-50 border-2 border-rose-100 rounded-[24px] p-4 text-rose-700 text-xs font-bold leading-relaxed">Informe o código de barras para o app gerar a imagem automaticamente.</div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <Field label="Data de validade *"><input type="date" required className={`${inputClass} uppercase tracking-widest`} value={formData.expirationDate} onChange={e => setFormData({ ...formData, expirationDate: e.target.value })} /></Field>
