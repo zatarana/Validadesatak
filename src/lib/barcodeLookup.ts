@@ -1,6 +1,7 @@
 import { Product } from '../types';
 import { DEFAULT_CATEGORY } from './categories';
 import { normalizeBarcodeValue } from './barcodeImage';
+import { isLikelyStandardBarcode } from './barcodeValidation';
 
 export type BarcodeLookupResult = {
   source: 'local' | 'web' | 'not_found';
@@ -30,6 +31,10 @@ export async function lookupBarcode(barcode: string, products: Product[]): Promi
       brand: localProduct.brand,
       category: localProduct.category || DEFAULT_CATEGORY,
     };
+  }
+
+  if (!isLikelyStandardBarcode(cleanBarcode)) {
+    return { source: 'not_found', barcode: cleanBarcode };
   }
 
   try {
