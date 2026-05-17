@@ -20,7 +20,7 @@ export function Brigade() {
     .sort((a, b) => getDaysUntil(a.expirationDate) - getDaysUntil(b.expirationDate));
   const displayList = tab === 'in' ? brigadeProducts : outBrigadeProducts;
 
-  const checklistItems = brigadeProducts.filter(product => {
+  const actionItems = brigadeProducts.filter(product => {
     const days = getDaysUntil(product.expirationDate);
     return days >= 0 && days <= settings.alertCritical;
   });
@@ -29,14 +29,14 @@ export function Brigade() {
     setCheckedItems(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const checkedCount = checklistItems.filter(product => checkedItems[product.id]).length;
+  const checkedCount = actionItems.filter(product => checkedItems[product.id]).length;
 
   return (
     <div className="space-y-6 pb-6">
       <div className="flex justify-between items-end bg-white p-6 rounded-[32px] shadow-sm border-2 border-slate-100">
         <div className="flex flex-col gap-1">
           <h1 className="text-3xl font-black text-slate-900 tracking-tighter leading-none">BRIGADA</h1>
-          <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest">{brigadeProducts.length} lotes listados</p>
+          <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest">{brigadeProducts.length} lotes na área de prioridade</p>
         </div>
         <button className="flex items-center gap-1.5 px-4 py-2 bg-slate-900 text-white rounded-xl font-bold uppercase tracking-widest text-[10px]">
           <Filter size={14} /> Validade
@@ -54,17 +54,17 @@ export function Brigade() {
         </button>
       </div>
 
-      {tab === 'in' && checklistItems.length > 0 && (
+      {tab === 'in' && actionItems.length > 0 && (
         <div className="bg-orange-50 border-2 border-orange-100 rounded-[32px] overflow-hidden shadow-sm">
           <div className="p-6 pb-2 flex items-center justify-between">
             <div className="flex items-center gap-3 font-black text-slate-800 tracking-tight text-xl">
-              <CheckSquare className="text-orange-500" size={24} /> Checklist
-              <span className="bg-orange-600 text-white text-xs px-3 py-1 rounded-xl uppercase tracking-widest mt-0.5">{checkedCount}/{checklistItems.length}</span>
+              <CheckSquare className="text-orange-500" size={24} /> Lista de Ação
+              <span className="bg-orange-600 text-white text-xs px-3 py-1 rounded-xl uppercase tracking-widest mt-0.5">{checkedCount}/{actionItems.length}</span>
             </div>
           </div>
-          <div className="px-6 pb-4 text-xs text-orange-600/80 font-bold tracking-wide uppercase">Vencendo em até {settings.alertCritical} dias</div>
+          <div className="px-6 pb-4 text-xs text-orange-600/80 font-bold tracking-wide uppercase">Produtos que precisam ser tratados agora • vencendo em até {settings.alertCritical} dias</div>
           <div className="p-4 space-y-2">
-            {checklistItems.map(item => {
+            {actionItems.map(item => {
               const days = getDaysUntil(item.expirationDate);
               return (
                 <div key={item.id} onClick={() => setEditingProduct(item)} className="bg-white p-4 rounded-[24px] border-2 border-orange-100 flex items-center gap-4 shadow-sm hover:bg-orange-50/50 transition-colors cursor-pointer group">
