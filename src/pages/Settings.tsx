@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../store/StoreContext';
-import { Store, Bell, Clock, ShieldAlert, Save, RefreshCw, Download, Upload } from 'lucide-react';
+import { Store, Bell, Clock, ShieldAlert, Save, RefreshCw, Download, Upload, Send } from 'lucide-react';
 import { toast } from 'sonner';
+import { getNotificationPermissionState, requestNotificationPermission, sendTestNotification } from '../lib/notifications';
 
 function downloadJson(filename: string, data: unknown) {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' });
@@ -16,8 +17,9 @@ function downloadJson(filename: string, data: unknown) {
 }
 
 export function SettingsPage() {
-  const { settings, updateSettings, resetSettings, exportBackup, importBackup } = useStore();
+  const { settings, updateSettings, resetSettings, exportBackup, importBackup, products } = useStore();
   const [localSettings, setLocalSettings] = useState(settings);
+  const [permission, setPermission] = useState(getNotificationPermissionState());
 
   useEffect(() => {
     setLocalSettings(settings);
@@ -51,6 +53,23 @@ export function SettingsPage() {
     }
   };
 
+  const handleRequestNotifications = async () => {
+    const result = await requestNotificationPermission();
+    setPermission(result);
+    if (result === 'granted') toast.success('Notificações permitidas.');
+    else if (result === 'unsupported') toast.error('Este navegador não suporta notificações.');
+    else toast.error('Notificações não foram permitidas.');
+  };
+
+  const handleTestNotification = () => {
+    try {
+      sendTestNotification(products, localSettings);
+      toast.success('Notificação de teste enviada.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível enviar a notificação.');
+    }
+  };
+
   const handleInput = (key: keyof typeof settings, value: string | number) => {
     setLocalSettings(prev => ({ ...prev, [key]: value }));
   };
@@ -62,9 +81,7 @@ export function SettingsPage() {
       </div>
 
       <section className="bg-white p-6 sm:p-8 rounded-[40px] shadow-sm border-2 border-slate-100 space-y-6">
-        <h2 className="flex items-center gap-3 font-black text-slate-900 text-xl tracking-tight">
-          <Store className="text-indigo-600" size={24} /> Identificação
-        </h2>
+        <h2 className="flex items-center gap-3 font-black text-slate-900 text-xl tracking-tight"><Store className="text-indigo-600" size={24} /> Identificação</h2>
         <p className="text-slate-500 font-bold text-sm">Aparece nos relatórios exportados.</p>
         <div className="space-y-3"><label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Nome da Loja</label><input type="text" className="w-full bg-slate-50 border-2 border-slate-100 rounded-[24px] px-5 py-4 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-bold text-slate-800 transition-all font-sans" value={localSettings.storeName} onChange={e => handleInput('storeName', e.target.value)} /></div>
         <div className="space-y-3"><label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Nome da Equipe</label><input type="text" className="w-full bg-slate-50 border-2 border-slate-100 rounded-[24px] px-5 py-4 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-bold text-slate-800 transition-all font-sans" value={localSettings.teamName} onChange={e => handleInput('teamName', e.target.value)} /></div>
@@ -84,7 +101,11 @@ export function SettingsPage() {
       <section className="bg-white p-6 sm:p-8 rounded-[40px] shadow-sm border-2 border-slate-100 space-y-6">
         <h2 className="flex items-center gap-3 font-black text-slate-900 text-xl tracking-tight"><Clock className="text-indigo-600" size={24} /> Notificações Push</h2>
         <p className="text-slate-500 font-bold text-sm">Horário preferido para receber alertas de validade.</p>
-        <div className="space-y-3"><label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Horário de notificação</label><input type="time" className="w-full max-w-[220px] bg-slate-50 border-2 border-slate-100 rounded-[24px] px-5 py-4 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-black text-slate-800 transition-all" value={localSettings.notificationTime} onChange={e => handleInput('notificationTime', e.target.value)} /><p className="text-xs text-slate-400 font-bold">Obs.: em navegador/PWA, permissões de notificação dependem do aparelho.</p></div>
+        <div className="space-y-3"><label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Horário de notificação</label><input type="time" className="w-full max-w-[220px] bg-slate-50 border-2 border-slate-100 rounded-[24px] px-5 py-4 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-black text-slate-800 transition-all" value={localSettings.notificationTime} onChange={e => handleInput('notificationTime', e.target.value)} /><p className="text-xs text-slate-400 font-bold">Status: {permission === 'granted' ? 'permitidas' : permission === 'denied' ? 'bloqueadas' : permission === 'unsupported' ? 'não suportadas' : 'não solicitadas'}.</p></div>
+        <div className="grid grid-cols-2 gap-3">
+          <button type="button" onClick={handleRequestNotifications} className="bg-indigo-50 border-2 border-indigo-100 text-indigo-700 rounded-2xl py-4 px-3 font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2"><Bell size={17} /> Permitir</button>
+          <button type="button" onClick={handleTestNotification} className="bg-slate-50 border-2 border-slate-100 text-slate-700 rounded-2xl py-4 px-3 font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2"><Send size={17} /> Testar</button>
+        </div>
       </section>
 
       <section className="bg-white p-6 sm:p-8 rounded-[40px] shadow-sm border-2 border-slate-100 space-y-6">
