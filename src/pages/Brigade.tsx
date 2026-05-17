@@ -1,23 +1,36 @@
 import React, { useState } from 'react';
 import { useStore } from '../store/StoreContext';
-import { Filter, FileText, CheckSquare, Shield, ShieldOff, ChevronUp } from 'lucide-react';
+import { Filter, FileText, CheckSquare, Shield, ShieldOff, ChevronUp, Check } from 'lucide-react';
 import { differenceInDays, parseISO, format } from 'date-fns';
+import { EditProductModal } from '../components/EditProductModal';
 import { cn } from '../lib/utils';
+import { Product } from '../types';
 
 export function Brigade() {
-  const { products } = useStore();
+  const { products, discardProduct } = useStore();
   const [tab, setTab] = useState<'in' | 'out'>('in');
+  const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
   const brigadeProducts = products.filter(p => p.inBrigade);
   const outBrigadeProducts = products.filter(p => !p.inBrigade);
 
   const displayList = tab === 'in' ? brigadeProducts : outBrigadeProducts;
 
-  // Let's assume checklist contains items that are < 3 days.
+  // Let's assume checklist contains items that are <= 3 days.
   const checklistItems = brigadeProducts.filter(p => {
     const days = differenceInDays(parseISO(p.expirationDate), new Date());
     return days <= 3 && days >= 0;
   });
+
+  const toggleCheck = (id: string) => {
+    setCheckedItems(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
+  };
+
+  const checkedCount = checklistItems.filter(p => checkedItems[p.id]).length;
 
   return (
     <div className="space-y-6 pb-6">
@@ -68,7 +81,7 @@ export function Brigade() {
             <div className="flex items-center gap-3 font-black text-slate-800 tracking-tight text-xl">
               <CheckSquare className="text-orange-500" size={24} />
               Checklist 
-              <span className="bg-orange-600 text-white text-xs px-3 py-1 rounded-xl uppercase tracking-widest mt-0.5">0/{checklistItems.length}</span>
+              <span className="bg-orange-600 text-white text-xs px-3 py-1 rounded-xl uppercase tracking-widest mt-0.5">{checkedCount}/{checklistItems.length}</span>
             </div>
           </div>
           <div className="px-6 pb-4 text-xs text-orange-600/80 font-bold tracking-wide uppercase">
@@ -76,9 +89,21 @@ export function Brigade() {
           </div>
           <div className="p-4 space-y-2">
             {checklistItems.map(item => (
-              <div key={item.id} className="bg-white p-4 rounded-[24px] border-2 border-orange-100 flex items-center gap-4 shadow-sm hover:bg-orange-50/50 transition-colors cursor-pointer group">
-                <div className="w-6 h-6 rounded border-2 border-orange-300 flex items-center justify-center group-hover:border-orange-500 transition-colors"></div>
-                <div className="flex-1">
+              <div 
+                key={item.id} 
+                onClick={() => setEditingProduct(item)}
+                className="bg-white p-4 rounded-[24px] border-2 border-orange-100 flex items-center gap-4 shadow-sm hover:bg-orange-50/50 transition-colors cursor-pointer group"
+              >
+                <div 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleCheck(item.id);
+                  }}
+                  className={cn("w-6 h-6 rounded border-2 flex items-center justify-center transition-colors", checkedItems[item.id] ? "bg-orange-500 border-orange-500" : "border-orange-300 group-hover:border-orange-500")}
+                >
+                  {checkedItems[item.id] && <Check className="text-white" size={14} strokeWidth={3} />}
+                </div>
+                <div className={cn("flex-1 transition-all", checkedItems[item.id] ? "opacity-50 line-through" : "")}>
                   <h4 className="font-black text-slate-800 leading-none">{item.name}</h4>
                   <div className="text-[10px] uppercase font-black tracking-widest text-slate-400 mt-2 flex items-center gap-2">
                     {item.brand}
@@ -97,7 +122,11 @@ export function Brigade() {
         {displayList.map(item => {
            const days = differenceInDays(parseISO(item.expirationDate), new Date());
            return (
-            <div key={item.id} className="bg-white p-5 rounded-[28px] border-2 border-slate-100 shadow-sm flex items-center justify-between hover:bg-slate-50 transition-colors">
+            <div 
+              key={item.id} 
+              onClick={() => setEditingProduct(item)}
+              className="bg-white p-5 rounded-[28px] border-2 border-slate-100 shadow-sm flex items-center justify-between hover:bg-slate-50 transition-colors cursor-pointer"
+            >
               <div>
                 <h4 className="font-black text-slate-800 leading-tight">{item.name}</h4>
                 <div className="text-[10px] text-slate-400 uppercase tracking-widest font-black mt-2">
@@ -114,6 +143,13 @@ export function Brigade() {
            )
         })}
       </div>
+
+      {editingProduct && (
+        <EditProductModal 
+          product={editingProduct} 
+          onClose={() => setEditingProduct(null)} 
+        />
+      )}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { ListProducts } from './pages/ListProducts';
 import { Brigade } from './pages/Brigade';
 import { Reports } from './pages/Reports';
 import { SettingsPage } from './pages/Settings';
+import { Toaster } from 'sonner';
 
 function AppContent() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -23,6 +24,7 @@ function AppContent() {
 
   return (
     <div className="flex flex-col min-h-screen bg-[#fdfdfd] text-slate-900 font-sans pb-20 selection:bg-indigo-100">
+      <Toaster position="top-center" richColors />
       <header className="bg-white/80 backdrop-blur-md px-6 py-4 flex items-center justify-between sticky top-0 z-40 border-b border-slate-100 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black text-xl italic">

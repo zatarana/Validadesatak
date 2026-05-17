@@ -125,6 +125,27 @@ export function Reports() {
            ))}
         </div>
       </div>
+
+      {discardRecords.length > 0 && (
+        <div className="bg-white p-6 rounded-[32px] shadow-sm border-2 border-slate-100 mb-8">
+          <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Histórico de Descartes</h3>
+          <div className="space-y-4">
+             {discardRecords.slice(0, 10).map(record => (
+                <div key={record.id} className="flex justify-between items-center border-b-2 border-slate-50 pb-4 last:border-0 last:pb-0">
+                   <div className="flex flex-col">
+                      <span className="font-black text-slate-800">{record.productName}</span>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">
+                        {new Date(record.discardedAt).toLocaleDateString()} • {record.reason}
+                      </span>
+                   </div>
+                   <div className="bg-rose-50 text-rose-600 px-3 py-1 rounded-xl font-black text-sm">
+                      -{record.quantity}
+                   </div>
+                </div>
+             ))}
+          </div>
+        </div>
+      )}
       
     </div>
   );

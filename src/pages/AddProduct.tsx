@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useStore } from '../store/StoreContext';
 import { Camera, Search } from 'lucide-react';
 import { BarcodeScanner } from '../components/BarcodeScanner';
+import { toast } from 'sonner';
 
 export function AddProduct() {
   const { addProduct } = useStore();
@@ -12,12 +13,17 @@ export function AddProduct() {
     brand: '',
     category: '',
     inBrigade: false,
-    expirationDate: ''
+    expirationDate: '',
+    batch: '',
+    quantity: ''
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.expirationDate) return;
+    if (!formData.name || !formData.expirationDate) {
+      toast.error('Preencha os campos obrigatórios!');
+      return;
+    }
     
     // Ensure date is valid, handle timezone simply by taking the input date value.
     const date = new Date(formData.expirationDate);
@@ -28,7 +34,9 @@ export function AddProduct() {
       brand: formData.brand,
       category: formData.category,
       inBrigade: formData.inBrigade,
-      expirationDate: date.toISOString()
+      expirationDate: date.toISOString(),
+      batch: formData.batch,
+      quantity: formData.quantity ? Number(formData.quantity) : undefined
     });
     
     // Reset form
@@ -38,10 +46,12 @@ export function AddProduct() {
       brand: '',
       category: '',
       inBrigade: false,
-      expirationDate: ''
+      expirationDate: '',
+      batch: '',
+      quantity: ''
     });
     
-    alert('Produto adicionado com sucesso!');
+    toast.success('Produto adicionado com sucesso!');
   };
 
   return (
@@ -120,15 +130,39 @@ export function AddProduct() {
           </div>
         </div>
 
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-3">
+            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Data de Validade *</label>
+            <input 
+              type="date"
+              required
+              className="w-full bg-slate-50 border-2 border-slate-100 rounded-[20px] px-5 py-4 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-bold text-slate-800 transition-all uppercase tracking-widest"
+              value={formData.expirationDate}
+              onChange={e => setFormData({...formData, expirationDate: e.target.value})}
+            />
+          </div>
+          
+          <div className="space-y-3">
+            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Lote</label>
+            <input 
+              type="text"
+              placeholder="Ex: L-1234"
+              className="w-full bg-slate-50 border-2 border-slate-100 rounded-[20px] px-5 py-4 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-bold text-slate-800 placeholder:text-slate-400 transition-all uppercase tracking-widest"
+              value={formData.batch}
+              onChange={e => setFormData({...formData, batch: e.target.value})}
+            />
+          </div>
+        </div>
+
         <div className="space-y-3 pt-2">
-          <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Data de Validade *</label>
-          <input 
-            type="date"
-            required
-            className="w-full bg-slate-50 border-2 border-slate-100 rounded-[20px] px-5 py-4 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-bold text-slate-800 transition-all uppercase tracking-widest"
-            value={formData.expirationDate}
-            onChange={e => setFormData({...formData, expirationDate: e.target.value})}
-          />
+           <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Quantidade</label>
+            <input 
+              type="number"
+              placeholder="Ex: 50"
+              className="w-full bg-slate-50 border-2 border-slate-100 rounded-[20px] px-5 py-4 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-bold text-slate-800 placeholder:text-slate-400 transition-all"
+              value={formData.quantity}
+              onChange={e => setFormData({...formData, quantity: e.target.value})}
+            />
         </div>
 
         <div className="flex items-center justify-between p-5 bg-slate-50 border-2 border-slate-100 rounded-[24px]">

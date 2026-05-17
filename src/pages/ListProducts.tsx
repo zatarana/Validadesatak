@@ -3,14 +3,18 @@ import { useStore } from '../store/StoreContext';
 import { Search, Camera, Filter, FileText, Edit2, Trash2, ShieldAlert } from 'lucide-react';
 import { differenceInDays, parseISO, format } from 'date-fns';
 import { BarcodeScanner } from '../components/BarcodeScanner';
+import { EditProductModal } from '../components/EditProductModal';
 import { cn } from '../lib/utils';
+import { toast } from 'sonner';
 
 export function ListProducts() {
   const { products, deleteProduct } = useStore();
   const [search, setSearch] = useState('');
   const [showScanner, setShowScanner] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
 
   const filteredProducts = products.filter(p => 
+
     p.name.toLowerCase().includes(search.toLowerCase()) || 
     p.brand.toLowerCase().includes(search.toLowerCase()) ||
     (p.barcode && p.barcode.includes(search)) ||
@@ -59,7 +63,11 @@ export function ListProducts() {
         {filteredProducts.map(product => {
           const days = differenceInDays(parseISO(product.expirationDate), new Date());
           return (
-            <div key={product.id} className="bg-white p-5 rounded-[28px] border-2 border-slate-100 shadow-sm relative group hover:bg-slate-50 transition-colors">
+            <div 
+              key={product.id} 
+              onClick={() => setEditingProduct(product)}
+              className="bg-white p-5 rounded-[28px] border-2 border-slate-100 shadow-sm relative group hover:bg-slate-50 transition-colors cursor-pointer"
+            >
               <div className="pr-16">
                 <div className="flex items-center gap-2 mb-1">
                   <h3 className="font-black text-slate-900 text-xl leading-tight">{product.name}</h3>
@@ -68,14 +76,24 @@ export function ListProducts() {
                 <p className="text-[10px] text-slate-400 uppercase tracking-widest font-black mb-3 truncate">
                   {product.brand} • {product.category.split('-')[1]?.trim() || product.category}
                 </p>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <div className="bg-slate-100 text-slate-500 px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest">
                     VENCE {format(parseISO(product.expirationDate), 'dd/MM/yy')}
                   </div>
+                  {product.batch && (
+                    <div className="bg-slate-100 text-slate-500 px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest">
+                      LOTE {product.batch}
+                    </div>
+                  )}
+                  {product.quantity && (
+                    <div className="bg-slate-100 text-slate-500 px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest">
+                      QTD {product.quantity}
+                    </div>
+                  )}
                 </div>
               </div>
               
-              <div className="absolute top-5 right-4 flex flex-col items-end gap-3">
+              <div className="absolute top-5 right-4 flex flex-col items-end gap-3" onClick={e => e.stopPropagation()}>
                 <div className={cn(
                     "px-3 py-1.5 rounded-xl font-black text-lg min-w-[3rem] text-center",
                     days < 0 ? "bg-red-100 text-red-600" : (days <= 3 ? "bg-orange-100 text-orange-600" : "bg-slate-100 text-slate-700")
@@ -83,14 +101,22 @@ export function ListProducts() {
                   {days}d
                 </div>
                 <div className="flex items-center gap-3 text-slate-300">
-                  <button className="hover:text-amber-500 transition-colors">
-                    <Edit2 size={18} />
-                  </button>
                   <button 
-                    onClick={() => {
-                        if (confirm('Tem certeza que deseja excluir?')) {
-                            deleteProduct(product.id)
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toast('Confirmar exclusão?', {
+                        action: {
+                          label: 'Excluir',
+                          onClick: () => {
+                            deleteProduct(product.id);
+                            toast.success('Excluído');
+                          }
+                        },
+                        cancel: {
+                          label: 'Cancelar',
+                          onClick: () => {}
                         }
+                      });
                     }} 
                     className="hover:text-red-500 transition-colors"
                   >
@@ -107,6 +133,13 @@ export function ListProducts() {
           </div>
         )}
       </div>
+
+      {editingProduct && (
+        <EditProductModal 
+          product={editingProduct as any} 
+          onClose={() => setEditingProduct(null)} 
+        />
+      )}
     </div>
   );
 }

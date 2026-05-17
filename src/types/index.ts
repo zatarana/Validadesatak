@@ -7,6 +7,8 @@ export type Product = {
   expirationDate: string; // ISO string
   inBrigade: boolean;
   addedAt: string;
+  batch?: string;
+  quantity?: number;
 };
 
 export type DiscardRecord = {
