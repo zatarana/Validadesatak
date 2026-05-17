@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { StoreProvider, useStore } from './store/StoreContext';
-import { ScanBarcode, Bell, LayoutDashboard, PlusSquare, List as ListIcon, ShieldAlert, BarChart3, Settings, ClipboardCheck, X, AlertTriangle, MessageCircle, Send } from 'lucide-react';
+import { ScanBarcode, Bell, LayoutDashboard, PlusSquare, List as ListIcon, ShieldAlert, BarChart3, Settings, ClipboardCheck, X, AlertTriangle, MessageCircle, Send, Printer } from 'lucide-react';
 import { cn } from './lib/utils';
 import { Dashboard } from './pages/Dashboard';
 import { AddProduct } from './pages/AddProduct';
@@ -11,7 +11,7 @@ import { SettingsPage } from './pages/Settings';
 import { Conference } from './pages/Conference';
 import { Toaster } from 'sonner';
 import { ProductListFilter } from './types/filters';
-import { shareBrigadeChecklist, shareProductStatusList } from './lib/export';
+import { printBarcodeLabels, shareBrigadeChecklist, shareProductStatusList } from './lib/export';
 
 function AppContent() {
   const { products, settings } = useStore();
@@ -98,12 +98,13 @@ function AppContent() {
           {quickMenuOpen && <button aria-label="Fechar ações rápidas" onClick={() => setQuickMenuOpen(false)} className="fixed inset-0 bg-slate-900/20 backdrop-blur-[1px] z-40" />}
           <div className="fixed bottom-28 right-6 z-50 flex flex-col items-end gap-3">
             {quickMenuOpen && (
-              <div className="bg-white rounded-[28px] border-2 border-slate-100 shadow-2xl p-3 w-64 space-y-2">
+              <div className="bg-white rounded-[28px] border-2 border-slate-100 shadow-2xl p-3 w-64 space-y-2 max-h-[65vh] overflow-y-auto">
                 <QuickAction icon={ScanBarcode} label="Escanear / adicionar" onClick={() => openTab('add')} />
                 <QuickAction icon={AlertTriangle} label="Ver críticos" onClick={() => openListWithFilter('critical')} />
                 <QuickAction icon={X} label="Ver vencidos" onClick={() => openListWithFilter('expired')} />
                 <QuickAction icon={Send} label="Enviar críticos" onClick={() => shareStatus('critical')} />
                 <QuickAction icon={Send} label="Enviar vencidos" onClick={() => shareStatus('expired')} />
+                <QuickAction icon={Printer} label="Imprimir etiquetas" onClick={() => { printBarcodeLabels(products, settings); setQuickMenuOpen(false); }} />
                 <QuickAction icon={ClipboardCheck} label="Abrir conferência" onClick={() => openTab('conference')} />
                 <QuickAction icon={MessageCircle} label="Compartilhar Brigada" onClick={() => { shareBrigadeChecklist(products, settings); setQuickMenuOpen(false); }} />
               </div>
