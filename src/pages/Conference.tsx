@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store/StoreContext';
-import { CheckCircle2, ClipboardCheck, RotateCcw, Search, ShieldAlert } from 'lucide-react';
+import { CheckCircle2, ClipboardCheck, Download, RotateCcw, Search, Share2, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { Product } from '../types';
 import { formatPtDate, getDaysUntil, getExpirationLabel } from '../lib/dates';
@@ -13,6 +13,20 @@ const loadChecks = (): CheckMap => { try { return JSON.parse(localStorage.getIte
 const saveChecks = (checks: CheckMap) => localStorage.setItem(KEY, JSON.stringify(checks));
 const checkedAt = (product: Product, checks: CheckMap) => checks[product.id] || product.lastCheckedAt || '';
 const isCheckedToday = (product: Product, checks: CheckMap) => checkedAt(product, checks).slice(0, 10) === today();
+
+function csvCell(value: unknown) { return `"${String(value ?? '').replace(/"/g, '""')}"`; }
+function downloadCsv(filename: string, rows: unknown[][]) {
+  const csv = rows.map(row => row.map(csvCell).join(';')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
 
 export function Conference() {
   const { products, updateProduct, settings } = useStore();
@@ -36,7 +50,8 @@ export function Conference() {
   }, [products, search, onlyPending, checks]);
 
   const checkedCount = products.filter(product => isCheckedToday(product, checks)).length;
-  const pendingCount = Math.max(0, products.length - checkedCount);
+  const pendingProducts = products.filter(product => !isCheckedToday(product, checks));
+  const pendingCount = pendingProducts.length;
   const progress = products.length > 0 ? Math.round((checkedCount / products.length) * 100) : 0;
 
   const markChecked = (product: Product) => {
@@ -69,6 +84,26 @@ export function Conference() {
     toast.success('Conferência reiniciada.');
   };
 
+  const shareWhatsApp = () => {
+    const lines = pendingProducts
+      .slice()
+      .sort((a, b) => getDaysUntil(a.expirationDate) - getDaysUntil(b.expirationDate))
+      .slice(0, 35)
+      .map((product, index) => `${index + 1}. ${product.name} | ${product.brand || 'sem marca'} | qtd ${product.quantity ?? '-'} | vence ${formatPtDate(product.expirationDate)} (${getExpirationLabel(getDaysUntil(product.expirationDate))})`);
+    const message = ['*Conferência de Validades*', `Data: ${new Date().toLocaleDateString('pt-BR')}`, `Progresso: ${progress}%`, `Conferidos: ${checkedCount}`, `Pendentes: ${pendingCount}`, '', '*Pendentes:*', ...(lines.length ? lines : ['Nenhum lote pendente.'])].join('\n');
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
+  };
+
+  const exportCsv = () => {
+    const rows = [['Produto', 'Marca', 'Categoria', 'Código', 'Quantidade', 'Validade', 'Status validade', 'Conferido hoje', 'Hora conferência']];
+    products.forEach(product => {
+      const time = checkedAt(product, checks);
+      rows.push([product.name, product.brand, product.category, product.barcode, product.quantity ?? '', formatPtDate(product.expirationDate), getExpirationLabel(getDaysUntil(product.expirationDate)), isCheckedToday(product, checks) ? 'Sim' : 'Não', time ? new Date(time).toLocaleString('pt-BR') : '']);
+    });
+    downloadCsv(`conferencia-${today()}.csv`, rows);
+    toast.success('CSV da conferência exportado.');
+  };
+
   return (
     <div className="space-y-6 pb-6">
       <div className="bg-white p-6 rounded-[32px] shadow-sm border-2 border-slate-100">
@@ -88,6 +123,8 @@ export function Conference() {
       <div className="grid grid-cols-2 gap-3">
         <button onClick={() => setOnlyPending(prev => !prev)} className={cn('rounded-2xl py-4 px-3 font-black text-[10px] uppercase tracking-widest border-2', onlyPending ? 'bg-amber-50 border-amber-100 text-amber-700' : 'bg-white border-slate-100 text-slate-600')}>{onlyPending ? 'Só pendentes' : 'Todos os lotes'}</button>
         <button onClick={markAllVisible} className="rounded-2xl py-4 px-3 font-black text-[10px] uppercase tracking-widest border-2 bg-indigo-50 border-indigo-100 text-indigo-700">Conferir visíveis</button>
+        <button onClick={shareWhatsApp} className="rounded-2xl py-4 px-3 font-black text-[10px] uppercase tracking-widest border-2 bg-emerald-50 border-emerald-100 text-emerald-700 flex items-center justify-center gap-2"><Share2 size={16} /> WhatsApp</button>
+        <button onClick={exportCsv} className="rounded-2xl py-4 px-3 font-black text-[10px] uppercase tracking-widest border-2 bg-slate-50 border-slate-100 text-slate-700 flex items-center justify-center gap-2"><Download size={16} /> CSV</button>
         <button onClick={clearToday} className="col-span-2 rounded-2xl py-4 px-3 font-black text-[10px] uppercase tracking-widest border-2 bg-white border-slate-100 text-slate-500">Reiniciar conferência do dia</button>
       </div>
 
