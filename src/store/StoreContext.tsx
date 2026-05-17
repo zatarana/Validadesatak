@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { Product, DiscardRecord, Settings } from '../types';
+import { Product, DiscardRecord, Settings, AppBackup } from '../types';
 import { addDays, subDays } from 'date-fns';
 import { generateBarcodeImageDataUrl, normalizeBarcodeValue } from '../lib/barcodeImage';
 
@@ -14,6 +14,8 @@ interface StoreContextType {
   discardProduct: (productId: string, quantity: number, reason: DiscardRecord['reason']) => void;
   updateSettings: (newSettings: Partial<Settings>) => void;
   resetSettings: () => void;
+  exportBackup: () => AppBackup;
+  importBackup: (backup: unknown) => void;
 }
 
 const defaultSettings: Settings = {
@@ -101,6 +103,11 @@ function sanitizeRecords(raw: unknown): DiscardRecord[] {
   }));
 }
 
+function sanitizeSettings(raw: unknown): Settings {
+  const data = typeof raw === 'object' && raw !== null ? raw as Partial<Settings> : {};
+  return { ...defaultSettings, ...data };
+}
+
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [discardRecords, setDiscardRecords] = useState<DiscardRecord[]>([]);
@@ -114,7 +121,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     setProducts(sanitizeProducts(savedProducts));
     setDiscardRecords(sanitizeRecords(savedRecords));
-    setSettings({ ...defaultSettings, ...(savedSettings || {}) });
+    setSettings(sanitizeSettings(savedSettings));
     setIsLoaded(true);
   }, []);
 
@@ -127,11 +134,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [products, discardRecords, settings, isLoaded]);
 
   const addProduct = (product: Omit<Product, 'id' | 'addedAt'>) => {
-    const newProduct: Product = {
-      ...product,
-      id: uuidv4(),
-      addedAt: new Date().toISOString(),
-    };
+    const newProduct: Product = { ...product, id: uuidv4(), addedAt: new Date().toISOString() };
     setProducts((prev) => [newProduct, ...prev]);
   };
 
@@ -171,10 +174,30 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setSettings(defaultSettings);
   };
 
+  const exportBackup = (): AppBackup => ({
+    app: 'SATAK.IO',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    products,
+    discardRecords,
+    settings,
+  });
+
+  const importBackup = (backup: unknown) => {
+    const data = backup as Partial<AppBackup>;
+    if (!data || data.app !== 'SATAK.IO') {
+      throw new Error('Arquivo de backup inválido.');
+    }
+
+    setProducts(sanitizeProducts(data.products));
+    setDiscardRecords(sanitizeRecords(data.discardRecords));
+    setSettings(sanitizeSettings(data.settings));
+  };
+
   if (!isLoaded) return null;
 
   return (
-    <StoreContext.Provider value={{ products, discardRecords, settings, addProduct, updateProduct, deleteProduct, discardProduct, updateSettings, resetSettings }}>
+    <StoreContext.Provider value={{ products, discardRecords, settings, addProduct, updateProduct, deleteProduct, discardProduct, updateSettings, resetSettings, exportBackup, importBackup }}>
       {children}
     </StoreContext.Provider>
   );
