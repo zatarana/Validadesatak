@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { StoreProvider, useStore } from './store/StoreContext';
-import { ScanBarcode, Bell, LayoutDashboard, PlusSquare, List as ListIcon, ShieldAlert, BarChart3, Settings, ClipboardCheck, X, AlertTriangle, MessageCircle, Send } from 'lucide-react';
+import { ScanBarcode, Bell, LayoutDashboard, PlusSquare, List as ListIcon, ShieldAlert, BarChart3, Settings, X, AlertTriangle, MessageCircle, Send } from 'lucide-react';
 import { cn } from './lib/utils';
 import { Dashboard } from './pages/Dashboard';
 import { AddProduct } from './pages/AddProduct';
@@ -8,7 +8,6 @@ import { ListProducts } from './pages/ListProducts';
 import { Brigade } from './pages/Brigade';
 import { Reports } from './pages/Reports';
 import { SettingsPage } from './pages/Settings';
-import { Conference } from './pages/Conference';
 import { Toaster } from 'sonner';
 import { ProductListFilter } from './types/filters';
 import { shareBrigadeChecklist, shareProductStatusList } from './lib/export';
@@ -40,7 +39,6 @@ function AppContent() {
     { id: 'add', label: 'Novo', icon: PlusSquare },
     { id: 'list', label: 'Listas', icon: ListIcon },
     { id: 'brigade', label: 'Brigada', icon: ShieldAlert },
-    { id: 'conference', label: 'Conf.', icon: ClipboardCheck },
     { id: 'reports', label: 'Relat.', icon: BarChart3 },
     { id: 'config', label: 'Config', icon: Settings },
   ];
@@ -73,7 +71,6 @@ function AppContent() {
         {activeTab === 'add' && <AddProduct />}
         {activeTab === 'list' && <ListProducts initialFilter={listFilter} onFilterChange={setListFilter} />}
         {activeTab === 'brigade' && <Brigade />}
-        {activeTab === 'conference' && <Conference />}
         {activeTab === 'reports' && <Reports />}
         {activeTab === 'config' && <SettingsPage />}
       </main>
@@ -93,7 +90,7 @@ function AppContent() {
         </div>
       </nav>
       
-      {(activeTab === 'dashboard' || activeTab === 'list' || activeTab === 'brigade' || activeTab === 'reports' || activeTab === 'conference') && (
+      {(activeTab === 'dashboard' || activeTab === 'list' || activeTab === 'brigade' || activeTab === 'reports') && (
         <>
           {quickMenuOpen && <button aria-label="Fechar ações rápidas" onClick={() => setQuickMenuOpen(false)} className="fixed inset-0 bg-slate-900/20 backdrop-blur-[1px] z-40" />}
           <div className="fixed bottom-28 right-6 z-50 flex flex-col items-end gap-3">
@@ -104,7 +101,6 @@ function AppContent() {
                 <QuickAction icon={X} label="Ver vencidos" onClick={() => openListWithFilter('expired')} />
                 <QuickAction icon={Send} label="Enviar críticos" onClick={() => shareStatus('critical')} />
                 <QuickAction icon={Send} label="Enviar vencidos" onClick={() => shareStatus('expired')} />
-                <QuickAction icon={ClipboardCheck} label="Abrir conferência" onClick={() => openTab('conference')} />
                 <QuickAction icon={MessageCircle} label="Compartilhar Brigada" onClick={() => { shareBrigadeChecklist(products, settings); setQuickMenuOpen(false); }} />
               </div>
             )}
