@@ -12,6 +12,7 @@ interface StoreContextType {
   deleteProduct: (id: string) => void;
   discardProduct: (productId: string, quantity: number, reason: DiscardRecord['reason']) => void;
   updateSettings: (newSettings: Partial<Settings>) => void;
+  resetSettings: () => void;
 }
 
 const defaultSettings: Settings = {
@@ -22,9 +23,9 @@ const defaultSettings: Settings = {
   alertMedium: 15,
   alertLow: 30,
   brigadeAutoSuggest: 30,
+  notificationTime: '08:00',
 };
 
-// Generate some initial mock data to match screenshots feeling
 const today = new Date();
 const initialProducts: Product[] = [
   { id: uuidv4(), name: 'Mussarela bufala', brand: 'Bom Destino', category: 'B06 - Laticínios', barcode: '789100010001', expirationDate: addDays(today, 2).toISOString(), inBrigade: true, addedAt: subDays(today, 10).toISOString() },
@@ -38,28 +39,32 @@ const initialProducts: Product[] = [
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
+function safelyParse<T>(value: string | null, fallback: T): T {
+  if (!value) return fallback;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return fallback;
+  }
+}
+
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [discardRecords, setDiscardRecords] = useState<DiscardRecord[]>([]);
   const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Load from local storage
   useEffect(() => {
-    const savedProducts = localStorage.getItem('products');
-    const savedRecords = localStorage.getItem('discardRecords');
-    const savedSettings = localStorage.getItem('settings');
+    const savedProducts = safelyParse<Product[] | null>(localStorage.getItem('products'), null);
+    const savedRecords = safelyParse<DiscardRecord[] | null>(localStorage.getItem('discardRecords'), null);
+    const savedSettings = safelyParse<Partial<Settings> | null>(localStorage.getItem('settings'), null);
 
-    if (savedProducts) setProducts(JSON.parse(savedProducts));
-    else setProducts(initialProducts);
-
-    if (savedRecords) setDiscardRecords(JSON.parse(savedRecords));
-    if (savedSettings) setSettings(JSON.parse(savedSettings));
-    
+    setProducts(savedProducts?.length ? savedProducts : initialProducts);
+    setDiscardRecords(savedRecords || []);
+    setSettings({ ...defaultSettings, ...(savedSettings || {}) });
     setIsLoaded(true);
   }, []);
 
-  // Save to local storage
   useEffect(() => {
     if (isLoaded) {
       localStorage.setItem('products', JSON.stringify(products));
@@ -78,17 +83,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateProduct = (id: string, updates: Partial<Product>) => {
-    setProducts((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, ...updates } : p))
-    );
+    setProducts((prev) => prev.map((product) => (product.id === id ? { ...product, ...updates } : product)));
   };
 
   const deleteProduct = (id: string) => {
-    setProducts((prev) => prev.filter((p) => p.id !== id));
+    setProducts((prev) => prev.filter((product) => product.id !== id));
   };
 
   const discardProduct = (productId: string, quantity: number, reason: DiscardRecord['reason']) => {
-    const product = products.find(p => p.id === productId);
+    const product = products.find((item) => item.id === productId);
     if (!product) return;
 
     const newRecord: DiscardRecord = {
@@ -103,7 +106,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       discardedAt: new Date().toISOString(),
     };
 
-    setDiscardRecords(prev => [newRecord, ...prev]);
+    setDiscardRecords((prev) => [newRecord, ...prev]);
     deleteProduct(productId);
   };
 
@@ -111,19 +114,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setSettings((prev) => ({ ...prev, ...newSettings }));
   };
 
+  const resetSettings = () => {
+    setSettings(defaultSettings);
+  };
+
   if (!isLoaded) return null;
 
   return (
-    <StoreContext.Provider value={{
-      products,
-      discardRecords,
-      settings,
-      addProduct,
-      updateProduct,
-      deleteProduct,
-      discardProduct,
-      updateSettings
-    }}>
+    <StoreContext.Provider value={{ products, discardRecords, settings, addProduct, updateProduct, deleteProduct, discardProduct, updateSettings, resetSettings }}>
       {children}
     </StoreContext.Provider>
   );
