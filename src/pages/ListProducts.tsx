@@ -1,28 +1,52 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useStore } from '../store/StoreContext';
-import { Search, Camera, Filter, Trash2, ShieldAlert } from 'lucide-react';
+import { Search, Camera, Filter, Trash2, ShieldAlert, X } from 'lucide-react';
 import { BarcodeScanner } from '../components/BarcodeScanner';
 import { EditProductModal } from '../components/EditProductModal';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import { Product } from '../types';
+import { ProductListFilter, productListFilterLabels } from '../types/filters';
 import { formatPtDate, getDaysUntil, getExpirationLabel } from '../lib/dates';
 
-export function ListProducts() {
+interface ListProductsProps {
+  initialFilter?: ProductListFilter;
+  onFilterChange?: (filter: ProductListFilter) => void;
+}
+
+export function ListProducts({ initialFilter = 'all', onFilterChange }: ListProductsProps) {
   const { products, deleteProduct, settings } = useStore();
   const [search, setSearch] = useState('');
   const [showScanner, setShowScanner] = useState(false);
+  const [filter, setFilter] = useState<ProductListFilter>(initialFilter);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+
+  useEffect(() => {
+    setFilter(initialFilter);
+  }, [initialFilter]);
+
+  const applyFilter = (nextFilter: ProductListFilter) => {
+    setFilter(nextFilter);
+    onFilterChange?.(nextFilter);
+  };
 
   const filteredProducts = products
     .filter(product => {
       const term = search.trim().toLowerCase();
-      if (!term) return true;
-      return product.name.toLowerCase().includes(term)
+      const days = getDaysUntil(product.expirationDate);
+      const matchesSearch = !term
+        || product.name.toLowerCase().includes(term)
         || product.brand.toLowerCase().includes(term)
         || product.category.toLowerCase().includes(term)
-        || product.batch?.toLowerCase().includes(term)
         || product.barcode.includes(term);
+
+      const matchesStatus = filter === 'all'
+        || (filter === 'expired' && days < 0)
+        || (filter === 'critical' && days >= 0 && days <= settings.alertCritical)
+        || (filter === 'attention' && days > settings.alertCritical && days <= settings.alertMedium)
+        || (filter === 'healthy' && days > settings.alertMedium);
+
+      return matchesSearch && matchesStatus;
     })
     .sort((a, b) => getDaysUntil(a.expirationDate) - getDaysUntil(b.expirationDate));
 
@@ -33,24 +57,28 @@ export function ListProducts() {
           <h1 className="text-4xl font-black text-slate-900 tracking-tighter leading-none">PRODUTOS</h1>
           <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-2">{filteredProducts.length} de {products.length} lotes</p>
         </div>
-        <button onClick={() => toast.info('Use a busca para filtrar por nome, marca, lote, código ou categoria.')} className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 rounded-xl text-[10px] font-black uppercase text-slate-700 tracking-widest hover:bg-slate-200 transition-colors">
-          <Filter size={14} /> Filtros
+        <button onClick={() => applyFilter('all')} className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 rounded-xl text-[10px] font-black uppercase text-slate-700 tracking-widest hover:bg-slate-200 transition-colors">
+          {filter === 'all' ? <Filter size={14} /> : <X size={14} />} {filter === 'all' ? 'Filtros' : 'Limpar'}
         </button>
+      </div>
+
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {(Object.keys(productListFilterLabels) as ProductListFilter[]).map(item => (
+          <button key={item} onClick={() => applyFilter(item)} className={cn('px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest border-2 whitespace-nowrap transition-all', filter === item ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-500 border-slate-100')}>
+            {productListFilterLabels[item]}
+          </button>
+        ))}
       </div>
 
       <button onClick={() => setShowScanner(true)} className="w-full flex items-center justify-center gap-3 bg-indigo-600 border-b-4 border-indigo-800 py-4 rounded-2xl shadow-xl shadow-indigo-100 font-black text-white uppercase text-[10px] tracking-widest hover:bg-indigo-700 active:translate-y-1 active:border-b-0 transition-all">
         <Camera size={18} /> Escanear Código
       </button>
 
-      {showScanner && (
-        <BarcodeScanner onScan={(result) => { setSearch(result); setShowScanner(false); }} onClose={() => setShowScanner(false)} />
-      )}
+      {showScanner && <BarcodeScanner onScan={(result) => { setSearch(result); setShowScanner(false); }} onClose={() => setShowScanner(false)} />}
 
       <div className="relative">
-        <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-          <Search className="h-6 w-6 text-slate-400" />
-        </div>
-        <input type="text" placeholder="Buscar nome, marca, código, lote ou categoria..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-12 pr-6 py-4 bg-white border-2 border-slate-100 rounded-[24px] focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-bold text-slate-800 placeholder:text-slate-400 transition-all shadow-sm" />
+        <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none"><Search className="h-6 w-6 text-slate-400" /></div>
+        <input type="text" placeholder="Buscar nome, marca, código ou categoria..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-12 pr-6 py-4 bg-white border-2 border-slate-100 rounded-[24px] focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-bold text-slate-800 placeholder:text-slate-400 transition-all shadow-sm" />
       </div>
 
       <div className="space-y-3 pb-8">
@@ -68,7 +96,7 @@ export function ListProducts() {
                 </p>
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="bg-slate-100 text-slate-500 px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest">VENCE {formatPtDate(product.expirationDate)}</div>
-                  {product.batch && <div className="bg-slate-100 text-slate-500 px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest">LOTE {product.batch}</div>}
+                  <div className="bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest">LOTE AUTO</div>
                   {product.quantity !== undefined && <div className="bg-slate-100 text-slate-500 px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest">QTD {product.quantity}</div>}
                 </div>
               </div>
@@ -79,7 +107,7 @@ export function ListProducts() {
             </div>
           );
         })}
-        {filteredProducts.length === 0 && <div className="text-center py-10 text-slate-500 font-bold bg-white rounded-[32px] border-2 border-slate-100 shadow-sm">Nenhum produto encontrado.</div>}
+        {filteredProducts.length === 0 && <div className="text-center py-10 text-slate-500 font-bold bg-white rounded-[32px] border-2 border-slate-100 shadow-sm">Nenhum produto encontrado para este filtro.</div>}
       </div>
 
       {editingProduct && <EditProductModal product={editingProduct} onClose={() => setEditingProduct(null)} />}
