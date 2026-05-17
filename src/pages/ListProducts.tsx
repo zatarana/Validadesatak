@@ -16,6 +16,7 @@ interface ListProductsProps {
 }
 
 type ViewMode = 'lots' | 'grouped';
+type SortMode = 'validity' | 'name' | 'category' | 'quantity';
 
 type ProductGroup = {
   key: string;
@@ -32,6 +33,28 @@ function groupKey(product: Product) {
   return `${product.barcode || product.name}|${product.brand}|${product.category}`.toLowerCase();
 }
 
+function sortProducts(products: Product[], sortMode: SortMode) {
+  const sorted = [...products];
+  sorted.sort((a, b) => {
+    if (sortMode === 'name') return a.name.localeCompare(b.name, 'pt-BR');
+    if (sortMode === 'category') return a.category.localeCompare(b.category, 'pt-BR') || getDaysUntil(a.expirationDate) - getDaysUntil(b.expirationDate);
+    if (sortMode === 'quantity') return (b.quantity || 0) - (a.quantity || 0) || getDaysUntil(a.expirationDate) - getDaysUntil(b.expirationDate);
+    return getDaysUntil(a.expirationDate) - getDaysUntil(b.expirationDate);
+  });
+  return sorted;
+}
+
+function sortGroups(groups: ProductGroup[], sortMode: SortMode) {
+  const sorted = [...groups];
+  sorted.sort((a, b) => {
+    if (sortMode === 'name') return a.name.localeCompare(b.name, 'pt-BR');
+    if (sortMode === 'category') return a.category.localeCompare(b.category, 'pt-BR') || getDaysUntil(a.nearestLot.expirationDate) - getDaysUntil(b.nearestLot.expirationDate);
+    if (sortMode === 'quantity') return b.totalQuantity - a.totalQuantity || getDaysUntil(a.nearestLot.expirationDate) - getDaysUntil(b.nearestLot.expirationDate);
+    return getDaysUntil(a.nearestLot.expirationDate) - getDaysUntil(b.nearestLot.expirationDate);
+  });
+  return sorted;
+}
+
 export function ListProducts({ initialFilter = 'all', onFilterChange }: ListProductsProps) {
   const { products, deleteProduct, updateProduct, settings } = useStore();
   const [search, setSearch] = useState('');
@@ -39,6 +62,7 @@ export function ListProducts({ initialFilter = 'all', onFilterChange }: ListProd
   const [filter, setFilter] = useState<ProductListFilter>(initialFilter);
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [viewMode, setViewMode] = useState<ViewMode>('lots');
+  const [sortMode, setSortMode] = useState<SortMode>('validity');
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
@@ -62,26 +86,24 @@ export function ListProducts({ initialFilter = 'all', onFilterChange }: ListProd
     applyFilter('all');
   };
 
-  const filteredProducts = products
-    .filter(product => {
-      const term = search.trim().toLowerCase();
-      const days = getDaysUntil(product.expirationDate);
-      const matchesSearch = !term
-        || product.name.toLowerCase().includes(term)
-        || product.brand.toLowerCase().includes(term)
-        || product.category.toLowerCase().includes(term)
-        || product.barcode.toLowerCase().includes(term);
+  const filteredProducts = sortProducts(products.filter(product => {
+    const term = search.trim().toLowerCase();
+    const days = getDaysUntil(product.expirationDate);
+    const matchesSearch = !term
+      || product.name.toLowerCase().includes(term)
+      || product.brand.toLowerCase().includes(term)
+      || product.category.toLowerCase().includes(term)
+      || product.barcode.toLowerCase().includes(term);
 
-      const matchesCategory = categoryFilter === 'all' || product.category === categoryFilter;
-      const matchesStatus = filter === 'all'
-        || (filter === 'expired' && days < 0)
-        || (filter === 'critical' && days >= 0 && days <= settings.alertCritical)
-        || (filter === 'attention' && days > settings.alertCritical && days <= settings.alertMedium)
-        || (filter === 'healthy' && days > settings.alertMedium);
+    const matchesCategory = categoryFilter === 'all' || product.category === categoryFilter;
+    const matchesStatus = filter === 'all'
+      || (filter === 'expired' && days < 0)
+      || (filter === 'critical' && days >= 0 && days <= settings.alertCritical)
+      || (filter === 'attention' && days > settings.alertCritical && days <= settings.alertMedium)
+      || (filter === 'healthy' && days > settings.alertMedium);
 
-      return matchesSearch && matchesCategory && matchesStatus;
-    })
-    .sort((a, b) => getDaysUntil(a.expirationDate) - getDaysUntil(b.expirationDate));
+    return matchesSearch && matchesCategory && matchesStatus;
+  }), sortMode);
 
   const groupedProducts = useMemo(() => {
     const groups = new Map<string, ProductGroup>();
@@ -105,16 +127,14 @@ export function ListProducts({ initialFilter = 'all', onFilterChange }: ListProd
 
       current.lots.push(product);
       current.totalQuantity += product.quantity || 0;
-      if (getDaysUntil(product.expirationDate) < getDaysUntil(current.nearestLot.expirationDate)) {
-        current.nearestLot = product;
-      }
+      if (getDaysUntil(product.expirationDate) < getDaysUntil(current.nearestLot.expirationDate)) current.nearestLot = product;
     });
 
-    return Array.from(groups.values()).map(group => ({
+    return sortGroups(Array.from(groups.values()).map(group => ({
       ...group,
-      lots: group.lots.sort((a, b) => getDaysUntil(a.expirationDate) - getDaysUntil(b.expirationDate)),
-    })).sort((a, b) => getDaysUntil(a.nearestLot.expirationDate) - getDaysUntil(b.nearestLot.expirationDate));
-  }, [filteredProducts]);
+      lots: sortProducts(group.lots, sortMode),
+    })), sortMode);
+  }, [filteredProducts, sortMode]);
 
   const hasFilters = filter !== 'all' || categoryFilter !== 'all' || search.trim().length > 0;
 
@@ -156,10 +176,18 @@ export function ListProducts({ initialFilter = 'all', onFilterChange }: ListProd
         ))}
       </div>
 
-      <select value={categoryFilter} onChange={event => setCategoryFilter(event.target.value)} className="w-full bg-white border-2 border-slate-100 rounded-[20px] px-5 py-4 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-black text-slate-700 text-xs uppercase tracking-widest shadow-sm">
-        <option value="all">Todas as categorias</option>
-        {categories.map(category => <option key={category} value={category}>{category}</option>)}
-      </select>
+      <div className="grid grid-cols-2 gap-3">
+        <select value={categoryFilter} onChange={event => setCategoryFilter(event.target.value)} className="w-full bg-white border-2 border-slate-100 rounded-[20px] px-4 py-4 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-black text-slate-700 text-[10px] uppercase tracking-widest shadow-sm">
+          <option value="all">Todas categorias</option>
+          {categories.map(category => <option key={category} value={category}>{category}</option>)}
+        </select>
+        <select value={sortMode} onChange={event => setSortMode(event.target.value as SortMode)} className="w-full bg-white border-2 border-slate-100 rounded-[20px] px-4 py-4 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-black text-slate-700 text-[10px] uppercase tracking-widest shadow-sm">
+          <option value="validity">Validade</option>
+          <option value="name">Nome A-Z</option>
+          <option value="category">Categoria</option>
+          <option value="quantity">Maior qtd</option>
+        </select>
+      </div>
 
       <button onClick={() => setShowScanner(true)} className="w-full flex items-center justify-center gap-3 bg-indigo-600 border-b-4 border-indigo-800 py-4 rounded-2xl shadow-xl shadow-indigo-100 font-black text-white uppercase text-[10px] tracking-widest hover:bg-indigo-700 active:translate-y-1 active:border-b-0 transition-all">
         <Camera size={18} /> Escanear Código
@@ -175,9 +203,7 @@ export function ListProducts({ initialFilter = 'all', onFilterChange }: ListProd
       <div className="space-y-3 pb-8">
         {viewMode === 'lots' && filteredProducts.map(product => {
           const days = getDaysUntil(product.expirationDate);
-          return (
-            <ProductLotCard key={product.id} product={product} days={days} settings={settings} onEdit={() => setEditingProduct(product)} onDelete={() => deleteProduct(product.id)} onToggleBrigade={() => toggleBrigade(product)} />
-          );
+          return <ProductLotCard key={product.id} product={product} days={days} settings={settings} onEdit={() => setEditingProduct(product)} onDelete={() => deleteProduct(product.id)} onToggleBrigade={() => toggleBrigade(product)} />;
         })}
 
         {viewMode === 'grouped' && groupedProducts.map(group => {
