@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { useStore } from '../store/StoreContext';
-import { Camera, Search } from 'lucide-react';
+import { Camera, ImagePlus, Search } from 'lucide-react';
 import { BarcodeScanner } from '../components/BarcodeScanner';
 import { toast } from 'sonner';
 import { toInputDate, toIsoFromInputDate } from '../lib/dates';
 import { DEFAULT_CATEGORY, STANDARD_CATEGORIES } from '../lib/categories';
+import { fileToDataUrl, lookupBarcode } from '../lib/barcodeLookup';
 
 const initialFormData = {
   barcode: '',
+  barcodeImage: '',
   name: '',
   brand: '',
   category: DEFAULT_CATEGORY,
@@ -24,6 +26,42 @@ export function AddProduct() {
   const { addProduct, updateProduct, products } = useStore();
   const [showScanner, setShowScanner] = useState(false);
   const [formData, setFormData] = useState(initialFormData);
+  const [isLookingUp, setIsLookingUp] = useState(false);
+
+  const handleBarcodeLookup = async (barcodeValue = formData.barcode) => {
+    const barcode = barcodeValue.trim();
+    if (!barcode) {
+      toast.error('Informe ou escaneie um código de barras.');
+      return;
+    }
+
+    setIsLookingUp(true);
+    const result = await lookupBarcode(barcode, products);
+    setIsLookingUp(false);
+
+    if (result.source === 'not_found') {
+      setFormData(prev => ({ ...prev, barcode: result.barcode || barcode }));
+      toast.info('Produto não encontrado. Preencha nome e categoria manualmente.');
+      return;
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      barcode: result.barcode,
+      name: result.name || prev.name,
+      brand: result.brand || prev.brand,
+      category: result.category || prev.category || DEFAULT_CATEGORY,
+    }));
+
+    toast.success(result.source === 'local' ? 'Produto encontrado localmente.' : 'Produto encontrado na web.');
+  };
+
+  const handleBarcodeImage = async (file?: File) => {
+    if (!file) return;
+    const dataUrl = await fileToDataUrl(file);
+    setFormData(prev => ({ ...prev, barcodeImage: dataUrl }));
+    toast.success('Imagem do código de barras anexada.');
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,12 +95,14 @@ export function AddProduct() {
         brand: formData.brand.trim() || existingSameValidity.brand,
         category: formData.category.trim() || existingSameValidity.category,
         inBrigade: formData.inBrigade || existingSameValidity.inBrigade,
+        barcodeImage: formData.barcodeImage || existingSameValidity.barcodeImage,
       });
       toast.success('Quantidade somada ao lote existente.');
     } else {
       addProduct({
         name,
         barcode,
+        barcodeImage: formData.barcodeImage || undefined,
         brand: formData.brand.trim(),
         category: formData.category.trim() || DEFAULT_CATEGORY,
         inBrigade: formData.inBrigade,
@@ -79,12 +119,12 @@ export function AddProduct() {
     <div className="space-y-6 pb-6 w-full">
       <div className="bg-white p-6 rounded-[32px] shadow-sm border-2 border-slate-100">
         <h1 className="text-4xl font-black text-slate-900 tracking-tighter leading-none">ADICIONAR</h1>
-        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-2">A validade cria o lote automaticamente</p>
+        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-2">Busque por código ou preencha manualmente</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 sm:p-8 rounded-[40px] shadow-sm border-2 border-slate-100">
         {showScanner && (
-          <BarcodeScanner onScan={(result) => { setFormData({ ...formData, barcode: result }); setShowScanner(false); toast.success('Código capturado.'); }} onClose={() => setShowScanner(false)} />
+          <BarcodeScanner onScan={(result) => { setFormData(prev => ({ ...prev, barcode: result })); setShowScanner(false); toast.success('Código capturado.'); void handleBarcodeLookup(result); }} onClose={() => setShowScanner(false)} />
         )}
 
         <div className="space-y-3">
@@ -92,8 +132,19 @@ export function AddProduct() {
           <button onClick={() => setShowScanner(true)} type="button" className="w-full flex items-center justify-center gap-2 bg-indigo-50 border-2 border-indigo-100 py-3 rounded-2xl font-black text-indigo-600 uppercase text-[10px] tracking-widest hover:bg-indigo-100 transition-colors"><Camera size={18} strokeWidth={2.5} /> Escanear com câmera</button>
           <div className="flex gap-2">
             <input type="text" placeholder="Digite o código" className="flex-1 bg-slate-50 border-2 border-slate-100 rounded-[20px] px-5 py-4 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-bold text-slate-800 placeholder:text-slate-400 transition-all" value={formData.barcode} onChange={e => setFormData({ ...formData, barcode: e.target.value })} />
-            <button type="button" onClick={() => toast.info('Busca automática por código ainda não configurada.')} className="bg-slate-100 border-2 border-slate-200 aspect-square w-16 rounded-[20px] flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors"><Search size={24} strokeWidth={2.5} /></button>
+            <button type="button" onClick={() => void handleBarcodeLookup()} disabled={isLookingUp} className="bg-slate-100 border-2 border-slate-200 aspect-square w-16 rounded-[20px] flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors disabled:opacity-50"><Search size={24} strokeWidth={2.5} /></button>
           </div>
+          <p className="text-xs text-slate-400 font-bold">A busca consulta primeiro os produtos salvos localmente. Se não encontrar, tenta buscar na web.</p>
+        </div>
+
+        <div className="space-y-3">
+          <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Imagem do código de barras</label>
+          <label className="flex items-center justify-center gap-3 bg-slate-50 border-2 border-dashed border-slate-200 rounded-[24px] p-4 cursor-pointer hover:bg-slate-100 transition-colors">
+            <ImagePlus size={22} className="text-indigo-600" />
+            <span className="font-black text-[10px] uppercase tracking-widest text-slate-600">Anexar foto do código</span>
+            <input type="file" accept="image/*" capture="environment" className="hidden" onChange={event => void handleBarcodeImage(event.target.files?.[0])} />
+          </label>
+          {formData.barcodeImage && <img src={formData.barcodeImage} alt="Código de barras anexado" className="w-full max-h-40 object-contain bg-slate-50 rounded-2xl border-2 border-slate-100 p-2" />}
         </div>
 
         <div className="space-y-3 pt-2">
