@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store/StoreContext';
 import { Search, Camera, Filter, Trash2, ShieldAlert, X } from 'lucide-react';
 import { BarcodeScanner } from '../components/BarcodeScanner';
@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { Product } from '../types';
 import { ProductListFilter, productListFilterLabels } from '../types/filters';
 import { formatPtDate, getDaysUntil, getExpirationLabel } from '../lib/dates';
+import { STANDARD_CATEGORIES } from '../lib/categories';
 
 interface ListProductsProps {
   initialFilter?: ProductListFilter;
@@ -19,15 +20,27 @@ export function ListProducts({ initialFilter = 'all', onFilterChange }: ListProd
   const [search, setSearch] = useState('');
   const [showScanner, setShowScanner] = useState(false);
   const [filter, setFilter] = useState<ProductListFilter>(initialFilter);
+  const [categoryFilter, setCategoryFilter] = useState('all');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
   useEffect(() => {
     setFilter(initialFilter);
   }, [initialFilter]);
 
+  const categories = useMemo(() => {
+    const dynamicCategories = products.map(product => product.category).filter(Boolean);
+    return Array.from(new Set([...STANDARD_CATEGORIES, ...dynamicCategories]));
+  }, [products]);
+
   const applyFilter = (nextFilter: ProductListFilter) => {
     setFilter(nextFilter);
     onFilterChange?.(nextFilter);
+  };
+
+  const clearFilters = () => {
+    setSearch('');
+    setCategoryFilter('all');
+    applyFilter('all');
   };
 
   const filteredProducts = products
@@ -40,15 +53,18 @@ export function ListProducts({ initialFilter = 'all', onFilterChange }: ListProd
         || product.category.toLowerCase().includes(term)
         || product.barcode.includes(term);
 
+      const matchesCategory = categoryFilter === 'all' || product.category === categoryFilter;
       const matchesStatus = filter === 'all'
         || (filter === 'expired' && days < 0)
         || (filter === 'critical' && days >= 0 && days <= settings.alertCritical)
         || (filter === 'attention' && days > settings.alertCritical && days <= settings.alertMedium)
         || (filter === 'healthy' && days > settings.alertMedium);
 
-      return matchesSearch && matchesStatus;
+      return matchesSearch && matchesCategory && matchesStatus;
     })
     .sort((a, b) => getDaysUntil(a.expirationDate) - getDaysUntil(b.expirationDate));
+
+  const hasFilters = filter !== 'all' || categoryFilter !== 'all' || search.trim().length > 0;
 
   return (
     <div className="space-y-6 pb-6">
@@ -57,8 +73,8 @@ export function ListProducts({ initialFilter = 'all', onFilterChange }: ListProd
           <h1 className="text-4xl font-black text-slate-900 tracking-tighter leading-none">PRODUTOS</h1>
           <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-2">{filteredProducts.length} de {products.length} lotes</p>
         </div>
-        <button onClick={() => applyFilter('all')} className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 rounded-xl text-[10px] font-black uppercase text-slate-700 tracking-widest hover:bg-slate-200 transition-colors">
-          {filter === 'all' ? <Filter size={14} /> : <X size={14} />} {filter === 'all' ? 'Filtros' : 'Limpar'}
+        <button onClick={hasFilters ? clearFilters : () => toast.info('Use os filtros abaixo para refinar a lista.')} className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 rounded-xl text-[10px] font-black uppercase text-slate-700 tracking-widest hover:bg-slate-200 transition-colors">
+          {hasFilters ? <X size={14} /> : <Filter size={14} />} {hasFilters ? 'Limpar' : 'Filtros'}
         </button>
       </div>
 
@@ -69,6 +85,11 @@ export function ListProducts({ initialFilter = 'all', onFilterChange }: ListProd
           </button>
         ))}
       </div>
+
+      <select value={categoryFilter} onChange={event => setCategoryFilter(event.target.value)} className="w-full bg-white border-2 border-slate-100 rounded-[20px] px-5 py-4 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-black text-slate-700 text-xs uppercase tracking-widest shadow-sm">
+        <option value="all">Todas as categorias</option>
+        {categories.map(category => <option key={category} value={category}>{category}</option>)}
+      </select>
 
       <button onClick={() => setShowScanner(true)} className="w-full flex items-center justify-center gap-3 bg-indigo-600 border-b-4 border-indigo-800 py-4 rounded-2xl shadow-xl shadow-indigo-100 font-black text-white uppercase text-[10px] tracking-widest hover:bg-indigo-700 active:translate-y-1 active:border-b-0 transition-all">
         <Camera size={18} /> Escanear Código
