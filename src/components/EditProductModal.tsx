@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { useStore } from '../store/StoreContext';
 import { Product, DiscardRecord } from '../types';
 import { formatPtDate, toInputDate, toIsoFromInputDate } from '../lib/dates';
+import { DEFAULT_CATEGORY, STANDARD_CATEGORIES } from '../lib/categories';
 
 interface EditProductModalProps {
   product: Product;
@@ -15,14 +16,14 @@ const reasons: DiscardRecord['reason'][] = ['Validade', 'Avaria', 'Não informad
 
 export function EditProductModal({ product, onClose }: EditProductModalProps) {
   const { updateProduct, deleteProduct, discardProduct } = useStore();
+  const categoryValue = STANDARD_CATEGORIES.includes(product.category) ? product.category : DEFAULT_CATEGORY;
   const [formData, setFormData] = useState({
     barcode: product.barcode || '',
     name: product.name || '',
     brand: product.brand || '',
-    category: product.category || '',
+    category: categoryValue,
     inBrigade: product.inBrigade,
     expirationDate: toInputDate(product.expirationDate),
-    batch: product.batch || '',
     quantity: product.quantity?.toString() || '',
   });
   const [discardQuantity, setDiscardQuantity] = useState(product.quantity?.toString() || '1');
@@ -41,10 +42,9 @@ export function EditProductModal({ product, onClose }: EditProductModalProps) {
       barcode: formData.barcode.trim(),
       name: formData.name.trim(),
       brand: formData.brand.trim(),
-      category: formData.category.trim(),
+      category: formData.category.trim() || DEFAULT_CATEGORY,
       inBrigade: formData.inBrigade,
       expirationDate: toIsoFromInputDate(formData.expirationDate),
-      batch: formData.batch.trim(),
       quantity: formData.quantity ? Math.max(0, quantity) : undefined,
     });
 
@@ -85,9 +85,7 @@ export function EditProductModal({ product, onClose }: EditProductModalProps) {
               <span className="text-[10px] font-bold uppercase tracking-widest">Adicionado em {formatPtDate(product.addedAt, 'dd/MM/yyyy')}</span>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:text-slate-800 hover:bg-slate-200 transition-colors">
-            <X size={20} />
-          </button>
+          <button onClick={onClose} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:text-slate-800 hover:bg-slate-200 transition-colors"><X size={20} /></button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5 p-6">
@@ -95,17 +93,18 @@ export function EditProductModal({ product, onClose }: EditProductModalProps) {
 
           <div className="grid grid-cols-2 gap-4">
             <Field label="Marca"><input type="text" className={inputClass} value={formData.brand} onChange={e => setFormData({ ...formData, brand: e.target.value })} /></Field>
-            <Field label="Categoria"><input type="text" className={inputClass} value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} placeholder="B06 - Laticínios" /></Field>
+            <Field label="Categoria"><select className={inputClass} value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })}>{STANDARD_CATEGORIES.map(category => <option key={category} value={category}>{category}</option>)}</select></Field>
           </div>
 
           <Field label="Código de barras"><input type="text" className={inputClass} value={formData.barcode} onChange={e => setFormData({ ...formData, barcode: e.target.value })} /></Field>
 
           <div className="grid grid-cols-2 gap-4">
             <Field label="Data de validade *"><input type="date" required className={`${inputClass} uppercase tracking-widest`} value={formData.expirationDate} onChange={e => setFormData({ ...formData, expirationDate: e.target.value })} /></Field>
-            <Field label="Lote"><input type="text" className={`${inputClass} uppercase tracking-widest`} value={formData.batch} onChange={e => setFormData({ ...formData, batch: e.target.value })} placeholder="Lote" /></Field>
             <Field label="Quantidade"><input type="number" min="0" className={inputClass} value={formData.quantity} onChange={e => setFormData({ ...formData, quantity: e.target.value })} placeholder="Qtd" /></Field>
             <Field label="Na Brigada?"><button type="button" onClick={() => setFormData({ ...formData, inBrigade: !formData.inBrigade })} className={`w-full flex justify-center items-center gap-2 py-3 rounded-[20px] font-black uppercase tracking-widest text-[10px] transition-colors border-2 ${formData.inBrigade ? 'bg-indigo-100 text-indigo-700 border-indigo-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}><ShieldAlert size={16} />{formData.inBrigade ? 'SIM' : 'NÃO'}</button></Field>
           </div>
+
+          <div className="bg-indigo-50 border-2 border-indigo-100 rounded-[24px] p-4 text-indigo-700 text-xs font-bold leading-relaxed">Lote automático: este lote é identificado pela data de validade deste produto.</div>
 
           <div className="bg-rose-50 border-2 border-rose-100 rounded-[28px] p-4 space-y-3">
             <div className="flex items-center gap-2 text-rose-700 font-black uppercase tracking-widest text-[10px]"><PackageCheck size={16} /> Dar baixa / descarte</div>
