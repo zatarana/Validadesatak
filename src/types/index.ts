@@ -34,3 +34,12 @@ export type Settings = {
   brigadeAutoSuggest: number;
   notificationTime: string;
 };
+
+export type AppBackup = {
+  app: 'SATAK.IO';
+  version: 1;
+  exportedAt: string;
+  products: Product[];
+  discardRecords: DiscardRecord[];
+  settings: Settings;
+};
