@@ -8,6 +8,7 @@ export type Product = {
   expirationDate: string; // ISO string
   inBrigade: boolean;
   addedAt: string;
+  lastCheckedAt?: string; // ISO string
   batch?: string;
   quantity?: number;
 };
