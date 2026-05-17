@@ -16,7 +16,7 @@ interface ListProductsProps {
 }
 
 type ViewMode = 'lots' | 'grouped';
-type SortMode = 'validity' | 'name' | 'category' | 'quantity';
+type SortMode = 'validity' | 'name' | 'category';
 
 type ProductGroup = {
   key: string;
@@ -24,7 +24,6 @@ type ProductGroup = {
   brand: string;
   category: string;
   barcode: string;
-  totalQuantity: number;
   lots: Product[];
   nearestLot: Product;
 };
@@ -38,7 +37,6 @@ function sortProducts(products: Product[], sortMode: SortMode) {
   sorted.sort((a, b) => {
     if (sortMode === 'name') return a.name.localeCompare(b.name, 'pt-BR');
     if (sortMode === 'category') return a.category.localeCompare(b.category, 'pt-BR') || getDaysUntil(a.expirationDate) - getDaysUntil(b.expirationDate);
-    if (sortMode === 'quantity') return (b.quantity || 0) - (a.quantity || 0) || getDaysUntil(a.expirationDate) - getDaysUntil(b.expirationDate);
     return getDaysUntil(a.expirationDate) - getDaysUntil(b.expirationDate);
   });
   return sorted;
@@ -49,7 +47,6 @@ function sortGroups(groups: ProductGroup[], sortMode: SortMode) {
   sorted.sort((a, b) => {
     if (sortMode === 'name') return a.name.localeCompare(b.name, 'pt-BR');
     if (sortMode === 'category') return a.category.localeCompare(b.category, 'pt-BR') || getDaysUntil(a.nearestLot.expirationDate) - getDaysUntil(b.nearestLot.expirationDate);
-    if (sortMode === 'quantity') return b.totalQuantity - a.totalQuantity || getDaysUntil(a.nearestLot.expirationDate) - getDaysUntil(b.nearestLot.expirationDate);
     return getDaysUntil(a.nearestLot.expirationDate) - getDaysUntil(b.nearestLot.expirationDate);
   });
   return sorted;
@@ -112,28 +109,15 @@ export function ListProducts({ initialFilter = 'all', onFilterChange }: ListProd
       const key = groupKey(product);
       const current = groups.get(key);
       if (!current) {
-        groups.set(key, {
-          key,
-          name: product.name,
-          brand: product.brand,
-          category: product.category,
-          barcode: product.barcode,
-          totalQuantity: product.quantity || 0,
-          lots: [product],
-          nearestLot: product,
-        });
+        groups.set(key, { key, name: product.name, brand: product.brand, category: product.category, barcode: product.barcode, lots: [product], nearestLot: product });
         return;
       }
 
       current.lots.push(product);
-      current.totalQuantity += product.quantity || 0;
       if (getDaysUntil(product.expirationDate) < getDaysUntil(current.nearestLot.expirationDate)) current.nearestLot = product;
     });
 
-    return sortGroups(Array.from(groups.values()).map(group => ({
-      ...group,
-      lots: sortProducts(group.lots, sortMode),
-    })), sortMode);
+    return sortGroups(Array.from(groups.values()).map(group => ({ ...group, lots: sortProducts(group.lots, sortMode) })), sortMode);
   }, [filteredProducts, sortMode]);
 
   const hasFilters = filter !== 'all' || categoryFilter !== 'all' || search.trim().length > 0;
@@ -185,7 +169,6 @@ export function ListProducts({ initialFilter = 'all', onFilterChange }: ListProd
           <option value="validity">Validade</option>
           <option value="name">Nome A-Z</option>
           <option value="category">Categoria</option>
-          <option value="quantity">Maior qtd</option>
         </select>
       </div>
 
@@ -217,7 +200,6 @@ export function ListProducts({ initialFilter = 'all', onFilterChange }: ListProd
                   <p className="text-[10px] text-slate-400 uppercase tracking-widest font-black mt-2 truncate">{group.brand || 'Sem marca'} • {group.category.split('-')[1]?.trim() || group.category}</p>
                   <div className="flex flex-wrap items-center gap-2 mt-3">
                     <span className="bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest">{group.lots.length} lotes</span>
-                    <span className="bg-slate-100 text-slate-500 px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest">QTD {group.totalQuantity || '-'}</span>
                     <span className="bg-slate-100 text-slate-500 px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest">Próx. {formatPtDate(group.nearestLot.expirationDate)}</span>
                   </div>
                 </div>
@@ -250,7 +232,6 @@ function ProductLotCard({ product, days, settings, onEdit, onDelete, onToggleBri
         <div className="flex flex-wrap items-center gap-2">
           <div className="bg-slate-100 text-slate-500 px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest">VENCE {formatPtDate(product.expirationDate)}</div>
           <div className="bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest">LOTE AUTO</div>
-          {product.quantity !== undefined && <div className="bg-slate-100 text-slate-500 px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest">QTD {product.quantity}</div>}
         </div>
         <div className="flex gap-2 mt-3" onClick={e => e.stopPropagation()}>
           <button onClick={onToggleBrigade} className="bg-indigo-50 text-indigo-700 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-colors">{product.inBrigade ? 'Remover Brigada' : 'Mover Brigada'}</button>
