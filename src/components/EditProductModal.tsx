@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { X, CalendarPlus, Save, Trash2, ShieldAlert, PackageCheck, History } from 'lucide-react';
+import { X, CalendarPlus, Save, Trash2, ShieldAlert, PackageCheck, History, ShoppingCart } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStore } from '../store/StoreContext';
 import { Product, DiscardRecord } from '../types';
@@ -26,9 +26,8 @@ export function EditProductModal({ product, onClose }: EditProductModalProps) {
     category: categoryValue,
     inBrigade: product.inBrigade,
     expirationDate: toInputDate(product.expirationDate),
-    quantity: product.quantity?.toString() || '',
   });
-  const [discardQuantity, setDiscardQuantity] = useState(product.quantity?.toString() || '1');
+  const [discardQuantity, setDiscardQuantity] = useState('1');
   const [discardReason, setDiscardReason] = useState<DiscardRecord['reason']>('Validade');
 
   const barcodeImage = generateBarcodeImageDataUrl(formData.barcode);
@@ -59,8 +58,6 @@ export function EditProductModal({ product, onClose }: EditProductModalProps) {
       return;
     }
 
-    const quantity = Number(formData.quantity);
-
     updateProduct(product.id, {
       barcode,
       barcodeImage: generatedBarcodeImage,
@@ -69,7 +66,6 @@ export function EditProductModal({ product, onClose }: EditProductModalProps) {
       category: formData.category.trim() || DEFAULT_CATEGORY,
       inBrigade: formData.inBrigade,
       expirationDate: toIsoFromInputDate(formData.expirationDate),
-      quantity: formData.quantity ? Math.max(0, quantity) : undefined,
     });
 
     toast.success('Produto atualizado!');
@@ -85,12 +81,27 @@ export function EditProductModal({ product, onClose }: EditProductModalProps) {
 
   const handleDelete = () => {
     toast('Excluir produto?', {
-      description: 'Essa ação remove o lote do controle atual.',
+      description: 'Remove o lote do controle atual sem registrar descarte.',
       action: {
         label: 'Excluir',
         onClick: () => {
           deleteProduct(product.id);
           toast.success('Produto excluído.');
+          onClose();
+        },
+      },
+      cancel: { label: 'Cancelar', onClick: () => undefined },
+    });
+  };
+
+  const handleSold = () => {
+    toast('Produto vendido?', {
+      description: 'Remove o lote da lista sem registrar descarte, pois saiu por venda.',
+      action: {
+        label: 'Vendido',
+        onClick: () => {
+          deleteProduct(product.id);
+          toast.success('Produto removido como vendido.');
           onClose();
         },
       },
@@ -125,16 +136,22 @@ export function EditProductModal({ product, onClose }: EditProductModalProps) {
 
           <div className="grid grid-cols-2 gap-4">
             <Field label="Data de validade *"><input type="date" required className={`${inputClass} uppercase tracking-widest`} value={formData.expirationDate} onChange={e => setFormData({ ...formData, expirationDate: e.target.value })} /></Field>
-            <Field label="Quantidade"><input type="number" min="0" className={inputClass} value={formData.quantity} onChange={e => setFormData({ ...formData, quantity: e.target.value })} placeholder="Qtd" /></Field>
             <Field label="Na Brigada?"><button type="button" onClick={() => setFormData({ ...formData, inBrigade: !formData.inBrigade })} className={`w-full flex justify-center items-center gap-2 py-3 rounded-[20px] font-black uppercase tracking-widest text-[10px] transition-colors border-2 ${formData.inBrigade ? 'bg-indigo-100 text-indigo-700 border-indigo-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}><ShieldAlert size={16} />{formData.inBrigade ? 'SIM' : 'NÃO'}</button></Field>
           </div>
 
-          <div className="bg-indigo-50 border-2 border-indigo-100 rounded-[24px] p-4 text-indigo-700 text-xs font-bold leading-relaxed">Lote automático: este lote é identificado pela data de validade deste produto.</div>
+          <div className="bg-indigo-50 border-2 border-indigo-100 rounded-[24px] p-4 text-indigo-700 text-xs font-bold leading-relaxed">Quantidade não é controlada no cadastro. Informe quantidade apenas ao registrar descarte.</div>
+
           <div className="bg-rose-50 border-2 border-rose-100 rounded-[28px] p-4 space-y-3">
             <div className="flex items-center gap-2 text-rose-700 font-black uppercase tracking-widest text-[10px]"><PackageCheck size={16} /> Dar baixa / descarte</div>
-            <div className="grid grid-cols-2 gap-3"><input type="number" min="1" className={`${inputClass} bg-white`} value={discardQuantity} onChange={e => setDiscardQuantity(e.target.value)} /><select className={`${inputClass} bg-white`} value={discardReason} onChange={e => setDiscardReason(e.target.value as DiscardRecord['reason'])}>{reasons.map(reason => <option key={reason} value={reason}>{reason}</option>)}</select></div>
-            <p className="text-xs font-bold text-rose-700/80">Se a quantidade descartada for menor que a quantidade do lote, o sistema mantém o saldo restante.</p>
+            <div className="grid grid-cols-2 gap-3"><input type="number" min="1" className={`${inputClass} bg-white`} value={discardQuantity} onChange={e => setDiscardQuantity(e.target.value)} placeholder="Qtd" /><select className={`${inputClass} bg-white`} value={discardReason} onChange={e => setDiscardReason(e.target.value as DiscardRecord['reason'])}>{reasons.map(reason => <option key={reason} value={reason}>{reason}</option>)}</select></div>
+            <p className="text-xs font-bold text-rose-700/80">Use esta área somente para produtos descartados por validade, avaria ou motivo não informado.</p>
             <button type="button" onClick={handleDiscard} className="w-full py-3 rounded-2xl bg-rose-600 text-white font-black uppercase tracking-widest text-[10px] hover:bg-rose-700 transition-colors">Registrar descarte</button>
+          </div>
+
+          <div className="bg-emerald-50 border-2 border-emerald-100 rounded-[28px] p-4 space-y-3">
+            <div className="flex items-center gap-2 text-emerald-700 font-black uppercase tracking-widest text-[10px]"><ShoppingCart size={16} /> Produto vendido</div>
+            <p className="text-xs font-bold text-emerald-700/80">Use quando o item saiu da lista porque foi vendido. Não registra descarte.</p>
+            <button type="button" onClick={handleSold} className="w-full py-3 rounded-2xl bg-emerald-600 text-white font-black uppercase tracking-widest text-[10px] hover:bg-emerald-700 transition-colors">Remover como vendido</button>
           </div>
 
           <div className="bg-slate-50 border-2 border-slate-100 rounded-[28px] p-4 space-y-3">
