@@ -1,5 +1,6 @@
 import { Product } from '../types';
 import { DEFAULT_CATEGORY } from './categories';
+import { normalizeBarcodeValue } from './barcodeImage';
 
 export type BarcodeLookupResult = {
   source: 'local' | 'web' | 'not_found';
@@ -9,22 +10,18 @@ export type BarcodeLookupResult = {
   category?: string;
 };
 
-function normalizeBarcode(barcode: string) {
-  return barcode.replace(/\D/g, '');
-}
-
 function normalizeText(value: string | undefined) {
   return (value || '').trim();
 }
 
 export async function lookupBarcode(barcode: string, products: Product[]): Promise<BarcodeLookupResult> {
-  const cleanBarcode = normalizeBarcode(barcode);
+  const cleanBarcode = normalizeBarcodeValue(barcode);
 
   if (!cleanBarcode) {
     return { source: 'not_found', barcode: '' };
   }
 
-  const localProduct = products.find(product => normalizeBarcode(product.barcode) === cleanBarcode);
+  const localProduct = products.find(product => normalizeBarcodeValue(product.barcode) === cleanBarcode);
   if (localProduct) {
     return {
       source: 'local',
@@ -66,13 +63,4 @@ export async function lookupBarcode(barcode: string, products: Product[]): Promi
   } catch {
     return { source: 'not_found', barcode: cleanBarcode };
   }
-}
-
-export function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
 }
