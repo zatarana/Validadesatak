@@ -4,12 +4,13 @@ import { Camera, Search } from 'lucide-react';
 import { BarcodeScanner } from '../components/BarcodeScanner';
 import { toast } from 'sonner';
 import { toInputDate, toIsoFromInputDate } from '../lib/dates';
+import { DEFAULT_CATEGORY, STANDARD_CATEGORIES } from '../lib/categories';
 
 const initialFormData = {
   barcode: '',
   name: '',
   brand: '',
-  category: '',
+  category: DEFAULT_CATEGORY,
   inBrigade: false,
   expirationDate: '',
   quantity: ''
@@ -63,7 +64,7 @@ export function AddProduct() {
         name,
         barcode,
         brand: formData.brand.trim(),
-        category: formData.category.trim() || 'Sem categoria',
+        category: formData.category.trim() || DEFAULT_CATEGORY,
         inBrigade: formData.inBrigade,
         expirationDate: toIsoFromInputDate(expirationDate),
         quantity: formData.quantity ? quantity : undefined
@@ -83,21 +84,12 @@ export function AddProduct() {
 
       <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 sm:p-8 rounded-[40px] shadow-sm border-2 border-slate-100">
         {showScanner && (
-          <BarcodeScanner
-            onScan={(result) => {
-              setFormData({ ...formData, barcode: result });
-              setShowScanner(false);
-              toast.success('Código capturado.');
-            }}
-            onClose={() => setShowScanner(false)}
-          />
+          <BarcodeScanner onScan={(result) => { setFormData({ ...formData, barcode: result }); setShowScanner(false); toast.success('Código capturado.'); }} onClose={() => setShowScanner(false)} />
         )}
 
         <div className="space-y-3">
           <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Código de Barras</label>
-          <button onClick={() => setShowScanner(true)} type="button" className="w-full flex items-center justify-center gap-2 bg-indigo-50 border-2 border-indigo-100 py-3 rounded-2xl font-black text-indigo-600 uppercase text-[10px] tracking-widest hover:bg-indigo-100 transition-colors">
-            <Camera size={18} strokeWidth={2.5} /> Escanear com câmera
-          </button>
+          <button onClick={() => setShowScanner(true)} type="button" className="w-full flex items-center justify-center gap-2 bg-indigo-50 border-2 border-indigo-100 py-3 rounded-2xl font-black text-indigo-600 uppercase text-[10px] tracking-widest hover:bg-indigo-100 transition-colors"><Camera size={18} strokeWidth={2.5} /> Escanear com câmera</button>
           <div className="flex gap-2">
             <input type="text" placeholder="Digite o código" className="flex-1 bg-slate-50 border-2 border-slate-100 rounded-[20px] px-5 py-4 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-bold text-slate-800 placeholder:text-slate-400 transition-all" value={formData.barcode} onChange={e => setFormData({ ...formData, barcode: e.target.value })} />
             <button type="button" onClick={() => toast.info('Busca automática por código ainda não configurada.')} className="bg-slate-100 border-2 border-slate-200 aspect-square w-16 rounded-[20px] flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-colors"><Search size={24} strokeWidth={2.5} /></button>
@@ -118,13 +110,7 @@ export function AddProduct() {
           <div className="space-y-3">
             <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Categoria</label>
             <select className="w-full bg-slate-50 border-2 border-slate-100 rounded-[20px] px-5 py-4 focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 font-bold text-slate-800 appearance-none transition-all" value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })}>
-              <option value="">Sem categoria</option>
-              <option value="B01 - Iogurte">Iogurte</option>
-              <option value="B02 - Margarina">Margarina</option>
-              <option value="B06 - Laticínios">Laticínios</option>
-              <option value="B03 - Linguiças">Linguiças</option>
-              <option value="B04 - Frango">Frango</option>
-              <option value="B05 - Congelados">Congelados</option>
+              {STANDARD_CATEGORIES.map(category => <option key={category} value={category}>{category}</option>)}
             </select>
           </div>
         </div>
@@ -141,15 +127,11 @@ export function AddProduct() {
           </div>
         </div>
 
-        <div className="p-4 bg-indigo-50 border-2 border-indigo-100 rounded-[24px] text-indigo-700 text-xs font-bold leading-relaxed">
-          Lote automático: se este mesmo produto já existir com esta validade, a quantidade será somada. Se a validade for diferente, o sistema criará outro lote automaticamente.
-        </div>
+        <div className="p-4 bg-indigo-50 border-2 border-indigo-100 rounded-[24px] text-indigo-700 text-xs font-bold leading-relaxed">Lote automático: se este mesmo produto já existir com esta validade, a quantidade será somada. Se a validade for diferente, o sistema criará outro lote automaticamente.</div>
 
         <div className="flex items-center justify-between p-5 bg-slate-50 border-2 border-slate-100 rounded-[24px]">
           <label className="text-xs font-black uppercase tracking-widest text-slate-700">Adicionar à Brigada</label>
-          <button type="button" onClick={() => setFormData({ ...formData, inBrigade: !formData.inBrigade })} className={`w-14 h-8 rounded-full p-1 transition-colors border-2 ${formData.inBrigade ? 'bg-indigo-500 border-indigo-600' : 'bg-slate-200 border-slate-300'}`}>
-            <div className={`w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${formData.inBrigade ? 'translate-x-6' : 'translate-x-0'}`} />
-          </button>
+          <button type="button" onClick={() => setFormData({ ...formData, inBrigade: !formData.inBrigade })} className={`w-14 h-8 rounded-full p-1 transition-colors border-2 ${formData.inBrigade ? 'bg-indigo-500 border-indigo-600' : 'bg-slate-200 border-slate-300'}`}><div className={`w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${formData.inBrigade ? 'translate-x-6' : 'translate-x-0'}`} /></button>
         </div>
 
         <button type="submit" className="w-full bg-indigo-600 text-white font-black text-[12px] uppercase tracking-widest py-5 rounded-[20px] mt-6 hover:bg-indigo-700 active:translate-y-1 shadow-xl shadow-indigo-100 border-b-4 border-indigo-800 active:border-b-0 transition-all">SALVAR PRODUTO</button>
