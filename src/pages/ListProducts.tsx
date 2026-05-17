@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store/StoreContext';
-import { Search, Camera, Filter, Trash2, ShieldAlert, X } from 'lucide-react';
+import { Search, Camera, Filter, Trash2, ShieldAlert, X, Layers3, List as ListIcon } from 'lucide-react';
 import { BarcodeScanner } from '../components/BarcodeScanner';
 import { EditProductModal } from '../components/EditProductModal';
 import { cn } from '../lib/utils';
@@ -15,12 +15,31 @@ interface ListProductsProps {
   onFilterChange?: (filter: ProductListFilter) => void;
 }
 
+type ViewMode = 'lots' | 'grouped';
+
+type ProductGroup = {
+  key: string;
+  name: string;
+  brand: string;
+  category: string;
+  barcode: string;
+  totalQuantity: number;
+  lots: Product[];
+  nearestLot: Product;
+};
+
+function groupKey(product: Product) {
+  return `${product.barcode || product.name}|${product.brand}|${product.category}`.toLowerCase();
+}
+
 export function ListProducts({ initialFilter = 'all', onFilterChange }: ListProductsProps) {
-  const { products, deleteProduct, settings } = useStore();
+  const { products, deleteProduct, updateProduct, settings } = useStore();
   const [search, setSearch] = useState('');
   const [showScanner, setShowScanner] = useState(false);
   const [filter, setFilter] = useState<ProductListFilter>(initialFilter);
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [viewMode, setViewMode] = useState<ViewMode>('lots');
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
   useEffect(() => {
@@ -51,7 +70,7 @@ export function ListProducts({ initialFilter = 'all', onFilterChange }: ListProd
         || product.name.toLowerCase().includes(term)
         || product.brand.toLowerCase().includes(term)
         || product.category.toLowerCase().includes(term)
-        || product.barcode.includes(term);
+        || product.barcode.toLowerCase().includes(term);
 
       const matchesCategory = categoryFilter === 'all' || product.category === categoryFilter;
       const matchesStatus = filter === 'all'
@@ -64,7 +83,49 @@ export function ListProducts({ initialFilter = 'all', onFilterChange }: ListProd
     })
     .sort((a, b) => getDaysUntil(a.expirationDate) - getDaysUntil(b.expirationDate));
 
+  const groupedProducts = useMemo(() => {
+    const groups = new Map<string, ProductGroup>();
+
+    filteredProducts.forEach(product => {
+      const key = groupKey(product);
+      const current = groups.get(key);
+      if (!current) {
+        groups.set(key, {
+          key,
+          name: product.name,
+          brand: product.brand,
+          category: product.category,
+          barcode: product.barcode,
+          totalQuantity: product.quantity || 0,
+          lots: [product],
+          nearestLot: product,
+        });
+        return;
+      }
+
+      current.lots.push(product);
+      current.totalQuantity += product.quantity || 0;
+      if (getDaysUntil(product.expirationDate) < getDaysUntil(current.nearestLot.expirationDate)) {
+        current.nearestLot = product;
+      }
+    });
+
+    return Array.from(groups.values()).map(group => ({
+      ...group,
+      lots: group.lots.sort((a, b) => getDaysUntil(a.expirationDate) - getDaysUntil(b.expirationDate)),
+    })).sort((a, b) => getDaysUntil(a.nearestLot.expirationDate) - getDaysUntil(b.nearestLot.expirationDate));
+  }, [filteredProducts]);
+
   const hasFilters = filter !== 'all' || categoryFilter !== 'all' || search.trim().length > 0;
+
+  const toggleBrigade = (product: Product) => {
+    updateProduct(product.id, { inBrigade: !product.inBrigade });
+    toast.success(product.inBrigade ? 'Removido da Brigada.' : 'Movido para a Brigada.');
+  };
+
+  const toggleGroup = (key: string) => {
+    setExpandedGroups(prev => ({ ...prev, [key]: !prev[key] }));
+  };
 
   return (
     <div className="space-y-6 pb-6">
@@ -75,6 +136,15 @@ export function ListProducts({ initialFilter = 'all', onFilterChange }: ListProd
         </div>
         <button onClick={hasFilters ? clearFilters : () => toast.info('Use os filtros abaixo para refinar a lista.')} className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 rounded-xl text-[10px] font-black uppercase text-slate-700 tracking-widest hover:bg-slate-200 transition-colors">
           {hasFilters ? <X size={14} /> : <Filter size={14} />} {hasFilters ? 'Limpar' : 'Filtros'}
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1.5 rounded-[20px]">
+        <button onClick={() => setViewMode('lots')} className={cn('flex items-center justify-center gap-2 py-3 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all', viewMode === 'lots' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500')}>
+          <ListIcon size={16} /> Lotes
+        </button>
+        <button onClick={() => setViewMode('grouped')} className={cn('flex items-center justify-center gap-2 py-3 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all', viewMode === 'grouped' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500')}>
+          <Layers3 size={16} /> Produtos
         </button>
       </div>
 
@@ -103,35 +173,67 @@ export function ListProducts({ initialFilter = 'all', onFilterChange }: ListProd
       </div>
 
       <div className="space-y-3 pb-8">
-        {filteredProducts.map(product => {
+        {viewMode === 'lots' && filteredProducts.map(product => {
           const days = getDaysUntil(product.expirationDate);
           return (
-            <div key={product.id} onClick={() => setEditingProduct(product)} className="bg-white p-5 rounded-[28px] border-2 border-slate-100 shadow-sm relative group hover:bg-slate-50 transition-colors cursor-pointer">
-              <div className="pr-16">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-black text-slate-900 text-xl leading-tight">{product.name}</h3>
-                  {product.inBrigade && <ShieldAlert size={18} className="text-indigo-500 fill-indigo-50" />}
+            <ProductLotCard key={product.id} product={product} days={days} settings={settings} onEdit={() => setEditingProduct(product)} onDelete={() => deleteProduct(product.id)} onToggleBrigade={() => toggleBrigade(product)} />
+          );
+        })}
+
+        {viewMode === 'grouped' && groupedProducts.map(group => {
+          const days = getDaysUntil(group.nearestLot.expirationDate);
+          const expanded = expandedGroups[group.key];
+          return (
+            <div key={group.key} className="bg-white p-5 rounded-[28px] border-2 border-slate-100 shadow-sm space-y-3">
+              <button onClick={() => toggleGroup(group.key)} className="w-full text-left flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <h3 className="font-black text-slate-900 text-xl leading-tight truncate">{group.name}</h3>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-widest font-black mt-2 truncate">{group.brand || 'Sem marca'} • {group.category.split('-')[1]?.trim() || group.category}</p>
+                  <div className="flex flex-wrap items-center gap-2 mt-3">
+                    <span className="bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest">{group.lots.length} lotes</span>
+                    <span className="bg-slate-100 text-slate-500 px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest">QTD {group.totalQuantity || '-'}</span>
+                    <span className="bg-slate-100 text-slate-500 px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest">Próx. {formatPtDate(group.nearestLot.expirationDate)}</span>
+                  </div>
                 </div>
-                <p className="text-[10px] text-slate-400 uppercase tracking-widest font-black mb-3 truncate">
-                  {(product.brand || 'Sem marca')} • {product.category.split('-')[1]?.trim() || product.category || 'Sem categoria'}
-                </p>
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="bg-slate-100 text-slate-500 px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest">VENCE {formatPtDate(product.expirationDate)}</div>
-                  <div className="bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest">LOTE AUTO</div>
-                  {product.quantity !== undefined && <div className="bg-slate-100 text-slate-500 px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest">QTD {product.quantity}</div>}
-                </div>
-              </div>
-              <div className="absolute top-5 right-4 flex flex-col items-end gap-3" onClick={e => e.stopPropagation()}>
-                <div className={cn('px-3 py-1.5 rounded-xl font-black text-sm min-w-[4rem] text-center', days < 0 ? 'bg-red-100 text-red-600' : (days <= settings.alertCritical ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-700'))}>{getExpirationLabel(days)}</div>
-                <button onClick={(e) => { e.stopPropagation(); toast('Confirmar exclusão?', { action: { label: 'Excluir', onClick: () => { deleteProduct(product.id); toast.success('Excluído'); } }, cancel: { label: 'Cancelar', onClick: () => undefined } }); }} className="text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
-              </div>
+                <span className={cn('px-3 py-1.5 rounded-xl font-black text-sm min-w-[4rem] text-center shrink-0', days < 0 ? 'bg-red-100 text-red-600' : (days <= settings.alertCritical ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-700'))}>{getExpirationLabel(days)}</span>
+              </button>
+              {expanded && <div className="space-y-2 pt-2 border-t-2 border-slate-50">{group.lots.map(lot => <ProductLotCard compact key={lot.id} product={lot} days={getDaysUntil(lot.expirationDate)} settings={settings} onEdit={() => setEditingProduct(lot)} onDelete={() => deleteProduct(lot.id)} onToggleBrigade={() => toggleBrigade(lot)} />)}</div>}
             </div>
           );
         })}
+
         {filteredProducts.length === 0 && <div className="text-center py-10 text-slate-500 font-bold bg-white rounded-[32px] border-2 border-slate-100 shadow-sm">Nenhum produto encontrado para este filtro.</div>}
       </div>
 
       {editingProduct && <EditProductModal product={editingProduct} onClose={() => setEditingProduct(null)} />}
+    </div>
+  );
+}
+
+function ProductLotCard({ product, days, settings, onEdit, onDelete, onToggleBrigade, compact = false }: { product: Product; days: number; settings: { alertCritical: number }; onEdit: () => void; onDelete: () => void; onToggleBrigade: () => void; compact?: boolean }) {
+  return (
+    <div onClick={onEdit} className={cn('bg-white border-2 border-slate-100 shadow-sm relative group hover:bg-slate-50 transition-colors cursor-pointer', compact ? 'p-3 rounded-[20px]' : 'p-5 rounded-[28px]')}>
+      <div className="pr-16">
+        <div className="flex items-center gap-2 mb-1">
+          <h3 className={cn('font-black text-slate-900 leading-tight', compact ? 'text-base' : 'text-xl')}>{product.name}</h3>
+          {product.inBrigade && <ShieldAlert size={18} className="text-indigo-500 fill-indigo-50" />}
+        </div>
+        <p className="text-[10px] text-slate-400 uppercase tracking-widest font-black mb-3 truncate">
+          {(product.brand || 'Sem marca')} • {product.category.split('-')[1]?.trim() || product.category || 'Sem categoria'}
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="bg-slate-100 text-slate-500 px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest">VENCE {formatPtDate(product.expirationDate)}</div>
+          <div className="bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest">LOTE AUTO</div>
+          {product.quantity !== undefined && <div className="bg-slate-100 text-slate-500 px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest">QTD {product.quantity}</div>}
+        </div>
+        <div className="flex gap-2 mt-3" onClick={e => e.stopPropagation()}>
+          <button onClick={onToggleBrigade} className="bg-indigo-50 text-indigo-700 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-colors">{product.inBrigade ? 'Remover Brigada' : 'Mover Brigada'}</button>
+        </div>
+      </div>
+      <div className="absolute top-5 right-4 flex flex-col items-end gap-3" onClick={e => e.stopPropagation()}>
+        <div className={cn('px-3 py-1.5 rounded-xl font-black text-sm min-w-[4rem] text-center', days < 0 ? 'bg-red-100 text-red-600' : (days <= settings.alertCritical ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-700'))}>{getExpirationLabel(days)}</div>
+        <button onClick={(e) => { e.stopPropagation(); toast('Confirmar exclusão?', { action: { label: 'Excluir', onClick: () => { onDelete(); toast.success('Excluído'); } }, cancel: { label: 'Cancelar', onClick: () => undefined } }); }} className="text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
+      </div>
     </div>
   );
 }
