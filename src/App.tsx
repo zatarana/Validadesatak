@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { StoreProvider } from './store/StoreContext';
-import { ScanBarcode, Bell, LayoutDashboard, PlusSquare, List as ListIcon, ShieldAlert, BarChart3, Settings } from 'lucide-react';
+import { ScanBarcode, Bell, LayoutDashboard, PlusSquare, List as ListIcon, ShieldAlert, BarChart3, Settings, ClipboardCheck } from 'lucide-react';
 import { cn } from './lib/utils';
 import { Dashboard } from './pages/Dashboard';
 import { AddProduct } from './pages/AddProduct';
@@ -8,6 +8,7 @@ import { ListProducts } from './pages/ListProducts';
 import { Brigade } from './pages/Brigade';
 import { Reports } from './pages/Reports';
 import { SettingsPage } from './pages/Settings';
+import { Conference } from './pages/Conference';
 import { Toaster } from 'sonner';
 import { ProductListFilter } from './types/filters';
 
@@ -21,11 +22,12 @@ function AppContent() {
   };
 
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'add', label: 'Adicionar', icon: PlusSquare },
+    { id: 'dashboard', label: 'Início', icon: LayoutDashboard },
+    { id: 'add', label: 'Novo', icon: PlusSquare },
     { id: 'list', label: 'Listas', icon: ListIcon },
     { id: 'brigade', label: 'Brigada', icon: ShieldAlert },
-    { id: 'reports', label: 'Relatórios', icon: BarChart3 },
+    { id: 'conference', label: 'Conf.', icon: ClipboardCheck },
+    { id: 'reports', label: 'Relat.', icon: BarChart3 },
     { id: 'config', label: 'Config', icon: Settings },
   ];
 
@@ -57,26 +59,27 @@ function AppContent() {
         {activeTab === 'add' && <AddProduct />}
         {activeTab === 'list' && <ListProducts initialFilter={listFilter} onFilterChange={setListFilter} />}
         {activeTab === 'brigade' && <Brigade />}
+        {activeTab === 'conference' && <Conference />}
         {activeTab === 'reports' && <Reports />}
         {activeTab === 'config' && <SettingsPage />}
       </main>
 
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-slate-100 safe-area-bottom z-50 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.05)]">
-        <div className="flex justify-around items-center max-w-2xl mx-auto p-2">
+        <div className="flex justify-around items-center max-w-2xl mx-auto p-2 overflow-x-auto">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
             return (
-              <button key={item.id} onClick={() => setActiveTab(item.id)} className={cn('flex flex-col items-center justify-center flex-1 py-3 gap-1 rounded-2xl transition-all', isActive ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600')}>
-                <Icon size={22} strokeWidth={isActive ? 2.5 : 2} />
-                <span className={cn('text-[9px] uppercase tracking-widest font-black transition-colors mt-0.5', isActive ? 'text-indigo-600' : 'text-slate-400')}>{item.label}</span>
+              <button key={item.id} onClick={() => setActiveTab(item.id)} className={cn('flex flex-col items-center justify-center min-w-[62px] flex-1 py-3 gap-1 rounded-2xl transition-all', isActive ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600')}>
+                <Icon size={21} strokeWidth={isActive ? 2.5 : 2} />
+                <span className={cn('text-[8px] uppercase tracking-widest font-black transition-colors mt-0.5', isActive ? 'text-indigo-600' : 'text-slate-400')}>{item.label}</span>
               </button>
             );
           })}
         </div>
       </nav>
       
-      {(activeTab === 'dashboard' || activeTab === 'list' || activeTab === 'brigade' || activeTab === 'reports') && (
+      {(activeTab === 'dashboard' || activeTab === 'list' || activeTab === 'brigade' || activeTab === 'reports' || activeTab === 'conference') && (
         <button onClick={() => setActiveTab('add')} className="fixed bottom-28 right-6 bg-indigo-600 hover:bg-indigo-700 text-white w-14 h-14 flex items-center justify-center rounded-2xl shadow-xl shadow-indigo-100 border-b-4 border-indigo-800 active:border-b-0 active:translate-y-1 transition-all z-40">
            <ScanBarcode size={24} strokeWidth={2.5} />
         </button>
