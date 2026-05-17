@@ -31,13 +31,13 @@ const defaultSettings: Settings = {
 
 const today = new Date();
 const initialProducts: Product[] = [
-  { id: uuidv4(), name: 'Mussarela bufala', brand: 'Bom Destino', category: 'B06 - Laticínios', barcode: '789100010001', barcodeImage: generateBarcodeImageDataUrl('789100010001'), expirationDate: addDays(today, 2).toISOString(), inBrigade: true, addedAt: subDays(today, 10).toISOString(), quantity: 18 },
-  { id: uuidv4(), name: 'Presunto Parma Fatiado', brand: 'Sadia', category: 'B06 - Laticínios', barcode: '789100010002', barcodeImage: generateBarcodeImageDataUrl('789100010002'), expirationDate: addDays(today, 2).toISOString(), inBrigade: true, addedAt: subDays(today, 15).toISOString(), quantity: 22 },
-  { id: uuidv4(), name: 'Manteiga tourinho pt 200g', brand: 'Tourinho', category: 'B02 - Margarina', barcode: '789100010003', barcodeImage: generateBarcodeImageDataUrl('789100010003'), expirationDate: addDays(today, 3).toISOString(), inBrigade: true, addedAt: subDays(today, 20).toISOString(), quantity: 31 },
-  { id: uuidv4(), name: 'Queijo mussarela fatiado', brand: 'Piracanjuba', category: 'B06 - Laticínios', barcode: '789100010004', barcodeImage: generateBarcodeImageDataUrl('789100010004'), expirationDate: addDays(today, 3).toISOString(), inBrigade: true, addedAt: subDays(today, 5).toISOString(), quantity: 16 },
-  { id: uuidv4(), name: 'Doriana Cremosa com sal', brand: 'Doriana', category: 'B02 - Margarina', barcode: '789100010005', barcodeImage: generateBarcodeImageDataUrl('789100010005'), expirationDate: addDays(today, 4).toISOString(), inBrigade: true, addedAt: subDays(today, 2).toISOString(), quantity: 27 },
-  { id: uuidv4(), name: 'Iogurte Natural Integral', brand: 'Itambé', category: 'B01 - Iogurte', barcode: '7896051164609', barcodeImage: generateBarcodeImageDataUrl('7896051164609'), expirationDate: addDays(today, 10).toISOString(), inBrigade: false, addedAt: subDays(today, 10).toISOString(), quantity: 13 },
-  { id: uuidv4(), name: 'Creme de Ricota', brand: 'Regina', category: 'B06 - Laticínios', barcode: '7896010400311', barcodeImage: generateBarcodeImageDataUrl('7896010400311'), expirationDate: addDays(today, 12).toISOString(), inBrigade: false, addedAt: subDays(today, 10).toISOString(), quantity: 36 },
+  { id: uuidv4(), name: 'Mussarela bufala', brand: 'Bom Destino', category: 'B06 - Laticínios', barcode: '789100010001', barcodeImage: generateBarcodeImageDataUrl('789100010001'), expirationDate: addDays(today, 2).toISOString(), inBrigade: true, addedAt: subDays(today, 10).toISOString() },
+  { id: uuidv4(), name: 'Presunto Parma Fatiado', brand: 'Sadia', category: 'B06 - Laticínios', barcode: '789100010002', barcodeImage: generateBarcodeImageDataUrl('789100010002'), expirationDate: addDays(today, 2).toISOString(), inBrigade: true, addedAt: subDays(today, 15).toISOString() },
+  { id: uuidv4(), name: 'Manteiga tourinho pt 200g', brand: 'Tourinho', category: 'B02 - Margarina', barcode: '789100010003', barcodeImage: generateBarcodeImageDataUrl('789100010003'), expirationDate: addDays(today, 3).toISOString(), inBrigade: true, addedAt: subDays(today, 20).toISOString() },
+  { id: uuidv4(), name: 'Queijo mussarela fatiado', brand: 'Piracanjuba', category: 'B06 - Laticínios', barcode: '789100010004', barcodeImage: generateBarcodeImageDataUrl('789100010004'), expirationDate: addDays(today, 3).toISOString(), inBrigade: true, addedAt: subDays(today, 5).toISOString() },
+  { id: uuidv4(), name: 'Doriana Cremosa com sal', brand: 'Doriana', category: 'B02 - Margarina', barcode: '789100010005', barcodeImage: generateBarcodeImageDataUrl('789100010005'), expirationDate: addDays(today, 4).toISOString(), inBrigade: true, addedAt: subDays(today, 2).toISOString() },
+  { id: uuidv4(), name: 'Iogurte Natural Integral', brand: 'Itambé', category: 'B01 - Iogurte', barcode: '7896051164609', barcodeImage: generateBarcodeImageDataUrl('7896051164609'), expirationDate: addDays(today, 10).toISOString(), inBrigade: false, addedAt: subDays(today, 10).toISOString() },
+  { id: uuidv4(), name: 'Creme de Ricota', brand: 'Regina', category: 'B06 - Laticínios', barcode: '7896010400311', barcodeImage: generateBarcodeImageDataUrl('7896010400311'), expirationDate: addDays(today, 12).toISOString(), inBrigade: false, addedAt: subDays(today, 10).toISOString() },
 ];
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -79,8 +79,8 @@ function sanitizeProducts(raw: unknown): Product[] {
         expirationDate: validIso(item.expirationDate || item.validade || item.expiresAt || item.expiryDate),
         inBrigade: Boolean(item.inBrigade ?? item.brigade ?? item.naBrigada ?? false),
         addedAt: validIso(item.addedAt || item.createdAt || item.dataCadastro),
+        lastCheckedAt: item.lastCheckedAt ? validIso(item.lastCheckedAt) : undefined,
         batch: item.batch || item.lote ? String(item.batch || item.lote) : undefined,
-        quantity: asNumber(item.quantity ?? item.quantidade ?? item.qtd),
       };
     });
 
@@ -150,11 +150,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const product = products.find((item) => item.id === productId);
     if (!product) return;
 
-    const currentQuantity = product.quantity;
-    const requestedQuantity = Math.max(1, quantity);
-    const discardedQuantity = currentQuantity === undefined ? requestedQuantity : Math.min(requestedQuantity, currentQuantity);
-    const remainingQuantity = currentQuantity === undefined ? undefined : Math.max(0, currentQuantity - discardedQuantity);
-
+    const discardedQuantity = Math.max(1, quantity);
     const newRecord: DiscardRecord = {
       id: uuidv4(),
       productId,
@@ -168,13 +164,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     };
 
     setDiscardRecords((prev) => [newRecord, ...prev]);
-
-    if (remainingQuantity === undefined || remainingQuantity <= 0) {
-      deleteProduct(productId);
-      return;
-    }
-
-    updateProduct(productId, { quantity: remainingQuantity });
+    deleteProduct(productId);
   };
 
   const updateSettings = (newSettings: Partial<Settings>) => {
