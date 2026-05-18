@@ -1,6 +1,14 @@
 import { DiscardRecord, Product, Settings } from '../types';
 import { supabase } from './supabase';
 
+export type StoreSession = {
+  storeId: string;
+  storeName: string;
+  storeNumber: number;
+  appUserId: string;
+  role: 'admin' | 'operator';
+};
+
 function productFromRow(row: any): Product {
   return {
     id: row.id,
@@ -16,10 +24,10 @@ function productFromRow(row: any): Product {
   };
 }
 
-function productToRow(product: Product, userId: string) {
+function productToRow(product: Product, storeId: string) {
   return {
     id: product.id,
-    user_id: userId,
+    store_id: storeId,
     barcode: product.barcode,
     barcode_image: product.barcodeImage || null,
     name: product.name,
@@ -46,10 +54,10 @@ function discardFromRow(row: any): DiscardRecord {
   };
 }
 
-function discardToRow(record: DiscardRecord, userId: string) {
+function discardToRow(record: DiscardRecord, storeId: string) {
   return {
     id: record.id,
-    user_id: userId,
+    store_id: storeId,
     product_id: record.productId || null,
     product_name: record.productName,
     product_brand: record.productBrand || '',
@@ -75,9 +83,9 @@ function settingsFromRow(row: any, fallback: Settings): Settings {
   };
 }
 
-function settingsToRow(settings: Settings, userId: string) {
+function settingsToRow(settings: Settings, storeId: string) {
   return {
-    user_id: userId,
+    store_id: storeId,
     store_name: settings.storeName,
     team_name: settings.teamName,
     alert_critical: settings.alertCritical,
@@ -89,11 +97,71 @@ function settingsToRow(settings: Settings, userId: string) {
   };
 }
 
-export async function loadRemoteState(userId: string, fallbackSettings: Settings) {
+export async function ensureAnonymousAuth() {
+  const { data } = await supabase.auth.getSession();
+  if (data.session) return data.session;
+  const result = await supabase.auth.signInAnonymously();
+  if (result.error) throw result.error;
+  return result.data.session;
+}
+
+export async function loginStore(pin: string, storeNumber: number) {
+  await ensureAnonymousAuth();
+  const { data, error } = await supabase.rpc('login_store', {
+    input_pin: pin,
+    input_store_number: storeNumber,
+  });
+  if (error) throw error;
+  const row = data?.[0];
+  if (!row) throw new Error('Login não retornou dados da loja.');
+  return {
+    storeId: row.store_id,
+    storeName: row.store_name,
+    storeNumber: row.store_number,
+    appUserId: row.app_user_id,
+    role: row.role,
+  } as StoreSession;
+}
+
+export async function bootstrapAdmin(pin: string, storeNumber: number) {
+  await ensureAnonymousAuth();
+  const { data, error } = await supabase.rpc('bootstrap_admin', {
+    input_pin: pin,
+    input_store_number: storeNumber,
+  });
+  if (error) throw error;
+  const row = data?.[0];
+  if (!row) throw new Error('Admin não retornou dados da loja.');
+  return {
+    storeId: row.store_id,
+    storeName: row.store_name,
+    storeNumber: row.store_number,
+    appUserId: row.app_user_id,
+    role: row.role,
+  } as StoreSession;
+}
+
+export async function createRemoteOperator(name: string, pin: string, storeNumbers: number[]) {
+  const { data, error } = await supabase.rpc('admin_create_operator', {
+    input_name: name,
+    input_pin: pin,
+    input_store_numbers: storeNumbers,
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+export async function listRemoteOperators() {
+  const { data, error } = await supabase.rpc('admin_list_operators');
+  if (error) throw error;
+  return data || [];
+}
+
+export async function loadRemoteState(storeId: string, fallbackSettings: Settings) {
   const [productsResult, discardsResult, settingsResult] = await Promise.all([
-    supabase.from('products').select('*').eq('user_id', userId).order('expiration_date', { ascending: true }),
-    supabase.from('discard_records').select('*').eq('user_id', userId).order('discarded_at', { ascending: false }),
-    supabase.from('user_settings').select('*').eq('user_id', userId).maybeSingle(),
+    supabase.from('products').select('*').eq('store_id', storeId).order('expiration_date', { ascending: true }),
+    supabase.from('discard_records').select('*').eq('store_id', storeId).order('discarded_at', { ascending: false }),
+    supabase.from('store_settings').select('*').eq('store_id', storeId).maybeSingle(),
   ]);
 
   if (productsResult.error) throw productsResult.error;
@@ -107,27 +175,22 @@ export async function loadRemoteState(userId: string, fallbackSettings: Settings
   };
 }
 
-export async function upsertRemoteProduct(product: Product, userId: string) {
-  const { error } = await supabase.from('products').upsert(productToRow(product, userId));
+export async function upsertRemoteProduct(product: Product, storeId: string) {
+  const { error } = await supabase.from('products').upsert(productToRow(product, storeId));
   if (error) throw error;
 }
 
-export async function updateRemoteProduct(product: Product, userId: string) {
-  const { error } = await supabase.from('products').upsert(productToRow(product, userId));
+export async function deleteRemoteProduct(productId: string, storeId: string) {
+  const { error } = await supabase.from('products').delete().eq('id', productId).eq('store_id', storeId);
   if (error) throw error;
 }
 
-export async function deleteRemoteProduct(productId: string, userId: string) {
-  const { error } = await supabase.from('products').delete().eq('id', productId).eq('user_id', userId);
+export async function insertRemoteDiscard(record: DiscardRecord, storeId: string) {
+  const { error } = await supabase.from('discard_records').insert(discardToRow(record, storeId));
   if (error) throw error;
 }
 
-export async function insertRemoteDiscard(record: DiscardRecord, userId: string) {
-  const { error } = await supabase.from('discard_records').insert(discardToRow(record, userId));
-  if (error) throw error;
-}
-
-export async function upsertRemoteSettings(settings: Settings, userId: string) {
-  const { error } = await supabase.from('user_settings').upsert(settingsToRow(settings, userId));
+export async function upsertRemoteSettings(settings: Settings, storeId: string) {
+  const { error } = await supabase.from('store_settings').upsert(settingsToRow(settings, storeId));
   if (error) throw error;
 }
