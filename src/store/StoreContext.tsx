@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Product, DiscardRecord, Settings, AppBackup } from '../types';
-import { addDays, subDays } from 'date-fns';
 import { generateBarcodeImageDataUrl, normalizeBarcodeValue } from '../lib/barcodeImage';
 import { buildBackup, loadFallbackState, loadLocalState, saveLocalState } from '../lib/database';
 import { StoreLoginScreen } from '../components/StoreLoginScreen';
@@ -39,17 +38,6 @@ const defaultSettings: Settings = {
   notificationTime: '08:00',
 };
 
-const today = new Date();
-const initialProducts: Product[] = [
-  { id: uuidv4(), name: 'Mussarela bufala', brand: 'Bom Destino', category: 'B06 - Laticínios', barcode: '789100010001', barcodeImage: generateBarcodeImageDataUrl('789100010001'), expirationDate: addDays(today, 2).toISOString(), inBrigade: true, addedAt: subDays(today, 10).toISOString() },
-  { id: uuidv4(), name: 'Presunto Parma Fatiado', brand: 'Sadia', category: 'B06 - Laticínios', barcode: '789100010002', barcodeImage: generateBarcodeImageDataUrl('789100010002'), expirationDate: addDays(today, 2).toISOString(), inBrigade: true, addedAt: subDays(today, 15).toISOString() },
-  { id: uuidv4(), name: 'Manteiga tourinho pt 200g', brand: 'Tourinho', category: 'B02 - Margarina', barcode: '789100010003', barcodeImage: generateBarcodeImageDataUrl('789100010003'), expirationDate: addDays(today, 3).toISOString(), inBrigade: true, addedAt: subDays(today, 20).toISOString() },
-  { id: uuidv4(), name: 'Queijo mussarela fatiado', brand: 'Piracanjuba', category: 'B06 - Laticínios', barcode: '789100010004', barcodeImage: generateBarcodeImageDataUrl('789100010004'), expirationDate: addDays(today, 3).toISOString(), inBrigade: true, addedAt: subDays(today, 5).toISOString() },
-  { id: uuidv4(), name: 'Doriana Cremosa com sal', brand: 'Doriana', category: 'B02 - Margarina', barcode: '789100010005', barcodeImage: generateBarcodeImageDataUrl('789100010005'), expirationDate: addDays(today, 4).toISOString(), inBrigade: true, addedAt: subDays(today, 2).toISOString() },
-  { id: uuidv4(), name: 'Iogurte Natural Integral', brand: 'Itambé', category: 'B01 - Iogurte', barcode: '7896051164609', barcodeImage: generateBarcodeImageDataUrl('7896051164609'), expirationDate: addDays(today, 10).toISOString(), inBrigade: false, addedAt: subDays(today, 10).toISOString() },
-  { id: uuidv4(), name: 'Creme de Ricota', brand: 'Regina', category: 'B06 - Laticínios', barcode: '7896010400311', barcodeImage: generateBarcodeImageDataUrl('7896010400311'), expirationDate: addDays(today, 12).toISOString(), inBrigade: false, addedAt: subDays(today, 10).toISOString() },
-];
-
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 function safelyParse<T>(value: string | null, fallback: T): T {
@@ -69,8 +57,8 @@ function asNumber(value: unknown) {
 }
 
 function sanitizeProducts(raw: unknown): Product[] {
-  if (!Array.isArray(raw)) return initialProducts;
-  const sanitized = raw.filter(Boolean).map((item: any): Product => {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(Boolean).map((item: any): Product => {
     const barcode = normalizeBarcodeValue(String(item.barcode || item.codigo || item.code || ''));
     return {
       id: String(item.id || uuidv4()),
@@ -85,7 +73,6 @@ function sanitizeProducts(raw: unknown): Product[] {
       batch: item.batch || item.lote ? String(item.batch || item.lote) : undefined,
     };
   });
-  return sanitized.length ? sanitized : initialProducts;
 }
 
 function sanitizeRecords(raw: unknown): DiscardRecord[] {
@@ -120,27 +107,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<StoreSession | null>(() => safelyParse<StoreSession | null>(localStorage.getItem(SESSION_KEY), null));
   const [isLoaded, setIsLoaded] = useState(false);
 
-  async function loadLocalFallback() {
+  async function loadLocalCacheOnly() {
     const indexedState = await loadLocalState();
     const fallbackState = loadFallbackState();
-    const legacyProducts = safelyParse<unknown>(localStorage.getItem('products'), null);
-    const legacyRecords = safelyParse<unknown>(localStorage.getItem('discardRecords'), null);
-    const legacySettings = safelyParse<Partial<Settings> | null>(localStorage.getItem('settings'), null);
     const source = indexedState || fallbackState;
-
-    if (source) {
-      setProducts(sanitizeProducts(source.products));
-      setDiscardRecords(sanitizeRecords(source.discardRecords));
-      setSettings(sanitizeSettings(source.settings));
-    } else if (legacyProducts || legacyRecords || legacySettings) {
-      setProducts(sanitizeProducts(legacyProducts));
-      setDiscardRecords(sanitizeRecords(legacyRecords));
-      setSettings(sanitizeSettings(legacySettings));
-    } else {
-      setProducts(initialProducts);
-      setDiscardRecords([]);
-      setSettings(defaultSettings);
-    }
+    if (!source) return;
+    setProducts(sanitizeProducts(source.products));
+    setDiscardRecords(sanitizeRecords(source.discardRecords));
+    setSettings(sanitizeSettings(source.settings));
   }
 
   async function loadCloudStore(activeSession: StoreSession) {
@@ -154,12 +128,26 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     async function loadState() {
       try {
-        if (session && isSupabaseConfigured) await loadCloudStore(session);
-        else await loadLocalFallback();
+        if (!isSupabaseConfigured) {
+          setSession(null);
+          saveSession(null);
+          setProducts([]);
+          setDiscardRecords([]);
+          setSettings(defaultSettings);
+          return;
+        }
+
+        if (session) {
+          await loadCloudStore(session);
+        }
       } catch (error) {
         console.error(error);
-        toast.error('Não foi possível carregar a nuvem. Usando cópia local.');
-        await loadLocalFallback();
+        setSession(null);
+        saveSession(null);
+        setProducts([]);
+        setDiscardRecords([]);
+        setSettings(defaultSettings);
+        toast.error('Sessão expirada ou inválida. Entre novamente.');
       } finally {
         setIsLoaded(true);
       }
@@ -168,12 +156,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (isLoaded) void saveLocalState({ products, discardRecords, settings });
-  }, [products, discardRecords, settings, isLoaded]);
+    if (isLoaded && session) void saveLocalState({ products, discardRecords, settings });
+  }, [products, discardRecords, settings, isLoaded, session]);
 
   const handleLogin = async (pin: string, storeNumber: number) => {
     if (!isSupabaseConfigured) {
-      toast.error('Supabase não configurado no ambiente do build.');
+      toast.error('Supabase não configurado no build. Verifique as variáveis VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.');
       return;
     }
 
@@ -284,15 +272,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  if (!isLoaded && !session) {
-    return <StoreLoginScreen onLogin={handleLogin} />;
-  }
+  if (!isLoaded) return <StoreLoginScreen onLogin={handleLogin} />;
 
-  if (!isLoaded) return null;
-
-  if (!session && isSupabaseConfigured) {
-    return <StoreLoginScreen onLogin={handleLogin} />;
-  }
+  if (!session) return <StoreLoginScreen onLogin={handleLogin} />;
 
   return (
     <StoreContext.Provider value={{ products, discardRecords, settings, session, isCloudMode: Boolean(session && isSupabaseConfigured), addProduct, updateProduct, deleteProduct, discardProduct, updateSettings, resetSettings, logout, exportBackup, importBackup }}>
