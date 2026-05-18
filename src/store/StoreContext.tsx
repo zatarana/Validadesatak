@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Product, DiscardRecord, Settings, AppBackup } from '../types';
 import { addDays, subDays } from 'date-fns';
 import { generateBarcodeImageDataUrl, normalizeBarcodeValue } from '../lib/barcodeImage';
+import { buildBackup, loadFallbackState, loadLocalState, saveLocalState } from '../lib/database';
 
 interface StoreContextType {
   products: Product[];
@@ -114,21 +115,38 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    const savedProducts = safelyParse<unknown>(localStorage.getItem('products'), null);
-    const savedRecords = safelyParse<unknown>(localStorage.getItem('discardRecords'), null);
-    const savedSettings = safelyParse<Partial<Settings> | null>(localStorage.getItem('settings'), null);
+    async function loadState() {
+      const indexedState = await loadLocalState();
+      const fallbackState = loadFallbackState();
+      const legacyProducts = safelyParse<unknown>(localStorage.getItem('products'), null);
+      const legacyRecords = safelyParse<unknown>(localStorage.getItem('discardRecords'), null);
+      const legacySettings = safelyParse<Partial<Settings> | null>(localStorage.getItem('settings'), null);
 
-    setProducts(sanitizeProducts(savedProducts));
-    setDiscardRecords(sanitizeRecords(savedRecords));
-    setSettings(sanitizeSettings(savedSettings));
-    setIsLoaded(true);
+      const source = indexedState || fallbackState;
+
+      if (source) {
+        setProducts(sanitizeProducts(source.products));
+        setDiscardRecords(sanitizeRecords(source.discardRecords));
+        setSettings(sanitizeSettings(source.settings));
+      } else if (legacyProducts || legacyRecords || legacySettings) {
+        setProducts(sanitizeProducts(legacyProducts));
+        setDiscardRecords(sanitizeRecords(legacyRecords));
+        setSettings(sanitizeSettings(legacySettings));
+      } else {
+        setProducts(initialProducts);
+        setDiscardRecords([]);
+        setSettings(defaultSettings);
+      }
+
+      setIsLoaded(true);
+    }
+
+    void loadState();
   }, []);
 
   useEffect(() => {
     if (isLoaded) {
-      localStorage.setItem('products', JSON.stringify(products));
-      localStorage.setItem('discardRecords', JSON.stringify(discardRecords));
-      localStorage.setItem('settings', JSON.stringify(settings));
+      void saveLocalState({ products, discardRecords, settings });
     }
   }, [products, discardRecords, settings, isLoaded]);
 
@@ -174,14 +192,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setSettings(defaultSettings);
   };
 
-  const exportBackup = (): AppBackup => ({
-    app: 'SATAK.IO',
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    products,
-    discardRecords,
-    settings,
-  });
+  const exportBackup = (): AppBackup => buildBackup({ products, discardRecords, settings });
 
   const importBackup = (backup: unknown) => {
     const data = backup as Partial<AppBackup>;
