@@ -100,22 +100,17 @@ function saveSession(session: StoreSession | null) {
   else localStorage.removeItem(SESSION_KEY);
 }
 
+function reportLoginError(message: string) {
+  toast.error(message);
+  window.alert(message);
+}
+
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [discardRecords, setDiscardRecords] = useState<DiscardRecord[]>([]);
   const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [session, setSession] = useState<StoreSession | null>(() => safelyParse<StoreSession | null>(localStorage.getItem(SESSION_KEY), null));
   const [isLoaded, setIsLoaded] = useState(false);
-
-  async function loadLocalCacheOnly() {
-    const indexedState = await loadLocalState();
-    const fallbackState = loadFallbackState();
-    const source = indexedState || fallbackState;
-    if (!source) return;
-    setProducts(sanitizeProducts(source.products));
-    setDiscardRecords(sanitizeRecords(source.discardRecords));
-    setSettings(sanitizeSettings(source.settings));
-  }
 
   async function loadCloudStore(activeSession: StoreSession) {
     const remote = await loadRemoteState(activeSession.storeId, defaultSettings);
@@ -137,9 +132,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        if (session) {
-          await loadCloudStore(session);
-        }
+        if (session) await loadCloudStore(session);
       } catch (error) {
         console.error(error);
         setSession(null);
@@ -161,8 +154,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const handleLogin = async (pin: string, storeNumber: number) => {
     if (!isSupabaseConfigured) {
-      toast.error('Supabase não configurado no build. Verifique as variáveis VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.');
-      return;
+      const message = 'Supabase não configurado no build. Confira as variáveis VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no GitHub Actions/Pages.';
+      reportLoginError(message);
+      throw new Error(message);
     }
 
     try {
@@ -178,7 +172,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setIsLoaded(true);
       toast.success(`${logged.storeName} carregada.`);
     } catch (error: any) {
-      toast.error(error?.message || 'Não foi possível entrar.');
+      const message = error?.message || 'Não foi possível entrar. Verifique o acesso, a loja e a conexão.';
+      reportLoginError(message);
       throw error;
     }
   };
